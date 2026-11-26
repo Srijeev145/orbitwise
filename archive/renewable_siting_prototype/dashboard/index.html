@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OrbitWise Site Finder</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a30;--line:#24304f;--ink:#e7ecf7;--mute:#8fa0c4;--acc:#ffb547;--good:#3ddc97;--bad:#ff6b6b;--wind:#5cc8ff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--line)}
+h1{font-size:18px;margin:0;letter-spacing:.3px}h1 span{color:var(--acc)}
+.sub{color:var(--mute);font-size:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:none;border:0;color:var(--mute);padding:7px 12px;cursor:pointer;font:inherit}
+.seg button.on{background:var(--line);color:var(--ink)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;padding:16px 20px}
+@media(max-width:900px){main{grid-template-columns:1fr;padding:12px 16px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+#mapwrap{position:relative}
+canvas{width:100%;height:auto;display:block;border-radius:8px;cursor:crosshair;image-rendering:pixelated}
+.legend{display:flex;align-items:center;gap:8px;margin-top:8px;color:var(--mute);font-size:12px}
+.legend i{flex:1;height:8px;border-radius:4px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.kpi b{display:block;font-size:20px}.kpi small{color:var(--mute)}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.8px;color:var(--mute);margin:0 0 10px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px dashed var(--line)}
+.row span:first-child{color:var(--mute)}
+.why{font-size:12px;color:var(--mute);margin-top:8px}
+.top li{padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.top li:hover{color:var(--acc)}
+ol{margin:0;padding-left:20px}
+label{display:block;font-size:12px;color:var(--mute);margin-top:10px}
+input[type=range]{width:100%}
+.pill{display:inline-block;padding:2px 8px;border-radius:99px;font-size:12px;background:var(--line)}
+.verdict{font-size:16px;font-weight:600;margin:6px 0}
+#tip{position:absolute;pointer-events:none;background:#000c;border:1px solid var(--line);padding:6px 8px;border-radius:6px;font-size:12px;display:none;white-space:nowrap}
+.side{display:flex;flex-direction:column;gap:16px}
+.lineage{font-size:12px;color:var(--mute)}.lineage b{color:var(--ink)}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Orbit<span>Wise</span> · Renewable Site Finder</h1>
+    <div class="sub" id="subtitle"></div></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <div class="seg" id="tech"><button data-v="solar" class="on">☀ Solar</button><button data-v="wind">🌬 Wind</button></div>
+    <div class="seg" id="metric"><button data-v="final" class="on">Site score</button><button data-v="lcoe">LCOE</button><button data-v="npv">P90 NPV</button></div>
+  </div>
+</header>
+<main>
+  <section>
+    <div class="kpis" id="kpis"></div>
+    <div class="card" id="mapwrap">
+      <canvas id="map"></canvas><div id="tip"></div>
+      <div class="legend"><span id="lmin"></span><i id="lbar"></i><span id="lmax"></span>
+        <span style="margin-left:10px">▧ excluded</span><span>◆ hidden gem</span></div>
+    </div>
+  </section>
+  <aside class="side">
+    <div class="card" id="detail"><h2>Site</h2><div class="sub">Click a cell on the map.</div></div>
+    <div class="card"><h2>What-if</h2>
+      <label>Auction tariff: <b id="tv"></b> ₹/kWh</label><input id="tariff" type="range" step="0.05">
+      <label>Capex multiplier: <b id="cv"></b>×</label><input id="capex" type="range" min="0.8" max="1.2" step="0.01" value="1">
+      <label>Cost of capital (WACC): <b id="wv"></b>%</label><input id="wacc" type="range" min="7" max="12" step="0.25">
+    </div>
+    <div class="card top"><h2>Top 10 sites</h2><ol id="top"></ol></div>
+    <div class="card lineage"><h2>Data lineage: every layer is from orbit</h2>
+      <div><b>Land use</b>: ESA WorldCover 2021, Sentinel-1 radar + Sentinel-2 optical, 10 m, deep-learning classified</div>
+      <div><b>Sunlight</b>: NASA POWER / CERES on Terra &amp; Aqua, <span id="yrs"></span> years</div>
+      <div><b>Wind &amp; temperature</b>: NASA MERRA-2 (satellite-assimilated reanalysis)</div>
+      <div><b>Terrain</b>: SRTM, Space Shuttle radar, 90 m</div>
+      <div><b>Grid</b>: <span id="gsrc"></span></div>
+    </div>
+  </aside>
+</main>
+<script src="data.js"></script>
+<script>
+const D = window.ORBITWISE, C = D.cells, M = D.meta, A = M.assumptions;
+const [NR, NC] = M.shape, N = C.lat.length;
+let tech = "solar", metric = "final", sel = null;
+const st = {tariff: {solar: A.solar.tariff, wind: A.wind.tariff}, capex: 1, wacc: A.wacc * 100};
+
+document.getElementById("subtitle").textContent =
+  `${M.region.name} · ${N.toLocaleString()} candidate cells of ${M.cell}° (~11 km) · 50 MW plant economics`;
+document.getElementById("yrs").textContent = M.ghi_years;
+document.getElementById("gsrc").textContent = M.grid_source;
+
+// ---------- live finance (mirrors model.py)
+function pvDeg(r, n, d) { let s = 0; for (let t = 1; t <= n; t++) s += Math.pow(1 - d, t - 1) / Math.pow(1 + r, t); return s; }
+function econ(i, t) {
+  if (C[t + "_excluded"][i]) return null;
+  const a = A[t], r = st.wacc / 100, n = A.life_yr;
+  const capex = C[t + "_capex_total_cr"][i] / A.plant_mw * 1e7 * st.capex;
+  const opex = a.opex_lakh_per_mw_yr * 1e5, pvo = opex * (1 - Math.pow(1 + r, -n)) / r;
+  const pvf = pvDeg(r, n, a.degradation);
+  const cf50 = t === "solar" ? C.solar_cuf[i] : C.wind_cf[i];
+  const cf90 = t === "solar" ? C.solar_cuf_p90[i] : C.wind_cf[i] * (1 - 1.282 * a.model_uncertainty);
+  const e50 = cf50 * 8760 * 1000, e90 = cf90 * 8760 * 1000, tar = st.tariff[t];
+  return { lcoe: (capex + pvo) / (e50 * pvf), npv: (tar * e90 * pvf - capex - pvo) * A.plant_mw / 1e7,
+           npv50: (tar * e50 * pvf - capex - pvo) * A.plant_mw / 1e7, cf50, cf90, capexTot: capex * A.plant_mw / 1e7 };
+}
+let E = [];
+function recompute() { E = Array.from({length: N}, (_, i) => econ(i, tech)); }
+
+// ---------- map
+const cv = document.getElementById("map"), ctx = cv.getContext("2d"), S = 12;
+cv.width = NC * S; cv.height = NR * S;
+const ramp = ["#1b2a5e", "#2b5aa8", "#3fa7b5", "#9bd37a", "#ffd166", "#ff9f43"];
+function col(x) { x = Math.max(0, Math.min(1, x)); const k = x * (ramp.length - 1), j = Math.floor(k), f = k - j;
+  const h = s => [1, 3, 5].map(o => parseInt(s.substr(o, 2), 16)); const a = h(ramp[j]), b = h(ramp[Math.min(j + 1, ramp.length - 1)]);
+  return `rgb(${a.map((v, q) => Math.round(v + (b[q] - v) * f)).join()})`; }
+function val(i) { const e = E[i]; if (!e) return null;
+  return metric === "final" ? C[tech + "_final"][i] : metric === "lcoe" ? e.lcoe : e.npv; }
+function draw() {
+  const vs = E.map((_, i) => val(i)).filter(v => v != null).sort((a, b) => a - b);
+  const lo = vs[Math.floor(vs.length * .02)], hi = vs[Math.floor(vs.length * .98)];
+  const inv = metric === "lcoe";
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  for (let i = 0; i < N; i++) {
+    const r = Math.floor(i / NC), c = i % NC, v = val(i), x = c * S, y = r * S;
+    if (v == null) {
+      const ex = C[tech + "_excluded"][i];
+      ctx.fillStyle = ex.startsWith("sea") ? "#070b16" : ex.startsWith("forest") ? "#0f2a1f" : "#1a1f2e";
+      ctx.fillRect(x, y, S, S); continue;
+    }
+    let t = (v - lo) / (hi - lo); if (inv) t = 1 - t;
+    ctx.fillStyle = col(t); ctx.fillRect(x, y, S - 1, S - 1);
+    if (metric === "npv" && v > 0) { ctx.strokeStyle = "#fff8"; ctx.strokeRect(x + .5, y + .5, S - 2, S - 2); }
+    if (C[tech + "_gem"][i]) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.moveTo(x + S / 2, y + 2); ctx.lineTo(x + S - 2, y + S / 2);
+      ctx.lineTo(x + S / 2, y + S - 2); ctx.lineTo(x + 2, y + S / 2); ctx.fill(); }
+  }
+  if (sel != null) { const r = Math.floor(sel / NC), c = sel % NC; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(c * S - 1, r * S - 1, S + 1, S + 1); ctx.lineWidth = 1; }
+  const fmt = v => metric === "final" ? v.toFixed(0) : metric === "lcoe" ? "₹" + v.toFixed(2) : "₹" + v.toFixed(0) + " cr";
+  document.getElementById("lmin").textContent = fmt(inv ? hi : lo);
+  document.getElementById("lmax").textContent = fmt(inv ? lo : hi);
+  document.getElementById("lbar").style.background = `linear-gradient(90deg,${ramp.join()})`;
+}
+function cellAt(ev) { const b = cv.getBoundingClientRect(); const c = Math.floor((ev.clientX - b.left) / b.width * NC), r = Math.floor((ev.clientY - b.top) / b.height * NR);
+  return (r >= 0 && r < NR && c >= 0 && c < NC) ? r * NC + c : null; }
+const tip = document.getElementById("tip");
+cv.addEventListener("mousemove", ev => { const i = cellAt(ev); if (i == null) return; const e = E[i];
+  tip.style.display = "block"; const b = cv.parentElement.getBoundingClientRect();
+  tip.style.left = (ev.clientX - b.left + 12) + "px"; tip.style.top = (ev.clientY - b.top + 12) + "px";
+  tip.textContent = `${C.lat[i].toFixed(2)}°N ${C.lon[i].toFixed(2)}°E · ` + (e ? `score ${C[tech + "_final"][i].toFixed(0)} · LCOE ₹${e.lcoe.toFixed(2)}` : C[tech + "_excluded"][i]); });
+cv.addEventListener("mouseleave", () => tip.style.display = "none");
+cv.addEventListener("click", ev => { const i = cellAt(ev); if (i != null) select(i); });
+
+// ---------- panels
+const pct = v => (v * 100).toFixed(1) + "%";
+function select(i) {
+  sel = i; draw(); const e = E[i], el = document.getElementById("detail");
+  const head = `<h2>Site ${C.lat[i].toFixed(2)}°N, ${C.lon[i].toFixed(2)}°E</h2>`;
+  if (!e) { el.innerHTML = head + `<div class="verdict" style="color:var(--bad)">Excluded</div><div class="sub">${C[tech + "_excluded"][i]}</div>`; return; }
+  const go = e.npv > 0, mid = e.npv50 > 0;
+  const verdict = go ? ["INVEST: bankable at P90", "var(--good)"] : mid ? ["WATCH: pays at P50, not P90", "var(--acc)"] : ["PASS at this tariff", "var(--bad)"];
+  const top = (D.top[tech].find(t => t.i === i) || {}).why;
+  const r = (k, v) => `<div class="row"><span>${k}</span><span>${v}</span></div>`;
+  el.innerHTML = head + `<div class="verdict" style="color:${verdict[1]}">${verdict[0]}</div>` +
+    r("Site score", `<span class="pill">${C[tech + "_final"][i].toFixed(0)} / 100</span>`) +
+    (tech === "solar" ? r("Sunlight (GHI)", C.ghi[i].toFixed(2) + " kWh/m²/day") : r("Hub wind (120 m)", C.wind_v_hub[i].toFixed(1) + " m/s")) +
+    r("Capacity factor P50 / P90", pct(e.cf50) + " / " + pct(e.cf90)) +
+    r("LCOE", "₹" + e.lcoe.toFixed(2) + " /kWh") +
+    r("NPV (50 MW) P50 / P90", `₹${e.npv50.toFixed(1)} / ₹${e.npv.toFixed(1)} cr`) +
+    r("Capex (incl. grid + land)", "₹" + e.capexTot.toFixed(0) + " cr") +
+    r("Grid distance", C.grid_km[i].toFixed(0) + " km") +
+    r("Slope", C.slope_deg[i] == null ? "n/a" : C.slope_deg[i].toFixed(1) + "°") +
+    r("Open land / cropland / forest", `${pct(C.lc_shrub[i] + C.lc_grass[i] + C.lc_bare[i])} / ${pct(C.lc_crop[i])} / ${pct(C.lc_tree[i])}`) +
+    (C[tech + "_likeness"][i] != null ? r("AI developer-likeness", pct(C[tech + "_likeness"][i])) : "") +
+    (C[tech + "_gem"][i] ? `<div class="verdict" style="color:var(--acc)">◆ Hidden gem: scores like built sites, no plant yet</div>` : "") +
+    (top ? `<div class="why">Why: ${top}</div>` : "");
+}
+function kpis() {
+  const ok = E.filter(Boolean), bank = ok.filter(e => e.npv > 0), lc = ok.map(e => e.lcoe).sort((a, b) => a - b);
+  const k = (v, s) => `<div class="kpi"><b>${v}</b><small>${s}</small></div>`;
+  document.getElementById("kpis").innerHTML =
+    k(ok.length.toLocaleString(), "eligible cells") + k(bank.length.toLocaleString(), "bankable at P90") +
+    k("₹" + lc[0].toFixed(2), "best LCOE /kWh") + k("₹" + st.tariff[tech].toFixed(2), "tariff /kWh");
+}
+function topList() {
+  const ids = E.map((e, i) => [i, e ? C[tech + "_final"][i] + e.npv / 1e4 : -1]).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  document.getElementById("top").innerHTML = ids.map(([i]) => `<li data-i="${i}">${C.lat[i].toFixed(2)}°N ${C.lon[i].toFixed(2)}°E · LCOE ₹${E[i].lcoe.toFixed(2)} · P90 NPV ₹${E[i].npv.toFixed(0)} cr${C[tech + "_gem"][i] ? " ◆" : ""}</li>`).join("");
+  document.querySelectorAll("#top li").forEach(li => li.onclick = () => select(+li.dataset.i));
+}
+function refresh() { recompute(); draw(); kpis(); topList(); if (sel != null) select(sel); }
+
+// ---------- controls
+const T = document.getElementById("tariff"), Cx = document.getElementById("capex"), W = document.getElementById("wacc");
+function syncSliders() { T.min = tech === "solar" ? 2.0 : 2.6; T.max = tech === "solar" ? 3.4 : 4.2; T.value = st.tariff[tech]; W.value = st.wacc;
+  document.getElementById("tv").textContent = (+T.value).toFixed(2); document.getElementById("cv").textContent = (+Cx.value).toFixed(2);
+  document.getElementById("wv").textContent = (+W.value).toFixed(2); }
+T.oninput = () => { st.tariff[tech] = +T.value; syncSliders(); refresh(); };
+Cx.oninput = () => { st.capex = +Cx.value; syncSliders(); refresh(); };
+W.oninput = () => { st.wacc = +W.value; syncSliders(); refresh(); };
+function seg(id, fn) { document.querySelectorAll(`#${id} button`).forEach(b => b.onclick = () => {
+  document.querySelectorAll(`#${id} button`).forEach(x => x.classList.toggle("on", x === b)); fn(b.dataset.v); }); }
+seg("tech", v => { tech = v; syncSliders(); refresh(); });
+seg("metric", v => { metric = v; draw(); });
+syncSliders(); refresh(); select(D.top[tech][0].i);
+</script>
+</body>
+</html>

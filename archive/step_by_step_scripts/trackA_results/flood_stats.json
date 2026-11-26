@@ -1,0 +1,51 @@
+{
+  "Kerala 21 Aug 2018": {
+    "baseline": {
+      "flooded_km2": 217.17587831882585,
+      "cropland_km2": 141.86745628292238,
+      "builtup_km2": 0.1455704034199165,
+      "wetland_or_grass_km2": 65.39750373639748
+    },
+    "ai": {
+      "flooded_km2": 75.02334666253947,
+      "cropland_km2": 48.511336939687176,
+      "builtup_km2": 0.0,
+      "wetland_or_grass_km2": 25.647685452546536
+    },
+    "coverage_pct": 61.815895833333336,
+    "alappuzha_kottayam_box_km2": {
+      "baseline": 133.7640371592137,
+      "ai": 38.70049829253239
+    }
+  },
+  "Karnataka 3 Aug 2019": {
+    "baseline": {
+      "flooded_km2": 19.890830496254775,
+      "cropland_km2": 9.553979774972218,
+      "builtup_km2": 0.02363383988861402,
+      "wetland_or_grass_km2": 0.5642579273406597
+    },
+    "ai": {
+      "flooded_km2": 91.3300200195628,
+      "cropland_km2": 50.35780434266432,
+      "builtup_km2": 0.02067960990253727,
+      "wetland_or_grass_km2": 8.50522812991497
+    },
+    "coverage_pct": 72.99558888888889
+  },
+  "Karnataka 21 Aug 2019": {
+    "baseline": {
+      "flooded_km2": 37.246931664455694,
+      "cropland_km2": 20.48758495344228,
+      "builtup_km2": 0.0,
+      "wetland_or_grass_km2": 0.5760748472849667
+    },
+    "ai": {
+      "flooded_km2": 46.316417721711325,
+      "cropland_km2": 26.14198114679318,
+      "builtup_km2": 0.0029542299860767524,
+      "wetland_or_grass_km2": 1.1521496945699334
+    },
+    "coverage_pct": 73.03544444444444
+  }
+}

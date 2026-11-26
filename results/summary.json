@@ -1,0 +1,235 @@
+{
+  "flood_ai": [
+    {
+      "evaluated_on": "Test floods",
+      "method": "Fixed threshold (VH < -20 dB)",
+      "IoU_water": 0.46243137015002983,
+      "F1_water": 0.6324144566217685,
+      "accuracy": 0.8683520599250937
+    },
+    {
+      "evaluated_on": "Indian floods (test)",
+      "method": "Fixed threshold (VH < -20 dB)",
+      "IoU_water": 0.6599879611316536,
+      "F1_water": 0.7951719850808122,
+      "accuracy": 0.9058571428571428
+    },
+    {
+      "evaluated_on": "Test floods",
+      "method": "Otsu threshold",
+      "IoU_water": 0.5061857359387162,
+      "F1_water": 0.6721425171686952,
+      "accuracy": 0.9097041198501873
+    },
+    {
+      "evaluated_on": "Indian floods (test)",
+      "method": "Otsu threshold",
+      "IoU_water": 0.7157517186410282,
+      "F1_water": 0.834330178270716,
+      "accuracy": 0.9320714285714286
+    },
+    {
+      "evaluated_on": "Test floods",
+      "method": "AI (Gradient Boosting)",
+      "IoU_water": 0.5752267008498314,
+      "F1_water": 0.7303414810572952,
+      "accuracy": 0.9329812734082397
+    },
+    {
+      "evaluated_on": "Indian floods (test)",
+      "method": "AI (Gradient Boosting)",
+      "IoU_water": 0.6983284956460815,
+      "F1_water": 0.8223715228665723,
+      "accuracy": 0.9282380952380952
+    },
+    {
+      "evaluated_on": "Unseen flood (Bolivia)",
+      "method": "Fixed threshold (VH < -20 dB)",
+      "IoU_water": 0.6194473262284259,
+      "F1_water": 0.7650107739793839,
+      "accuracy": 0.9103333333333333
+    },
+    {
+      "evaluated_on": "Unseen flood (Bolivia)",
+      "method": "Otsu threshold",
+      "IoU_water": 0.6951489003472587,
+      "F1_water": 0.8201626420013657,
+      "accuracy": 0.9356222222222222
+    },
+    {
+      "evaluated_on": "Unseen flood (Bolivia)",
+      "method": "AI (Gradient Boosting)",
+      "IoU_water": 0.6081878386514148,
+      "F1_water": 0.7563641808924828,
+      "accuracy": 0.9276888888888889
+    },
+    {
+      "evaluated_on": "Test floods",
+      "method": "Hybrid (AI + Otsu)",
+      "IoU_water": 0.5617352112676056,
+      "F1_water": 0.7193731782632535,
+      "accuracy": 0.9271610486891386
+    },
+    {
+      "evaluated_on": "Indian floods (test)",
+      "method": "Hybrid (AI + Otsu)",
+      "IoU_water": 0.7146830915954699,
+      "F1_water": 0.833603707995365,
+      "accuracy": 0.9316190476190476
+    },
+    {
+      "evaluated_on": "Unseen flood (Bolivia)",
+      "method": "Hybrid (AI + Otsu)",
+      "IoU_water": 0.6636269190811497,
+      "F1_water": 0.7978073827366083,
+      "accuracy": 0.9352444444444444
+    }
+  ],
+  "kerala": {
+    "baseline": {
+      "flooded_km2": 217.17587831882585,
+      "cropland_km2": 141.86745628292238,
+      "builtup_km2": 0.1455704034199165,
+      "alappuzha_kottayam_km2": 133.7640371592137
+    },
+    "ai": {
+      "flooded_km2": 68.46358035842948,
+      "cropland_km2": 44.738637317721,
+      "builtup_km2": 0.0,
+      "alappuzha_kottayam_km2": 33.720777408876074
+    }
+  },
+  "payout": {
+    "baseline": {
+      "cells_with_farmland": 1240,
+      "cells_triggered": 517,
+      "hectares_to_pay": 11978.624571416378,
+      "payout_crore": null,
+      "farmer_premium_per_ha": null
+    },
+    "ai": {
+      "cells_with_farmland": 1240,
+      "cells_triggered": 138,
+      "hectares_to_pay": 2421.9275868988607,
+      "payout_crore": null,
+      "farmer_premium_per_ha": null
+    }
+  },
+  "collision_risk": {
+    "Do nothing (trust 2-day-old risk)": {
+      "caught": 8.0,
+      "dangerous": 13.0,
+      "precision": 0.12903225806451613,
+      "recall": 0.6153846153846154,
+      "F2": 0.3508771929824561,
+      "alerts": 62.0
+    },
+    "AI (Gradient Boosting)": {
+      "caught": 9.0,
+      "dangerous": 13.0,
+      "precision": 0.11688311688311688,
+      "recall": 0.6923076923076923,
+      "F2": 0.3488372093023256,
+      "alerts": 77.0
+    }
+  },
+  "test_alerts": {
+    "LOW": 1847,
+    "HIGH": 269,
+    "MEDIUM": 51
+  },
+  "debris_closest": [
+    {
+      "satellite": "CARTOSAT-2D",
+      "object": "RASSVET-3 15",
+      "closest_km": 1.2852402069676832,
+      "relative_speed_km_s": 15.222466676264755,
+      "time_utc": "2026-11-26 12:44:00",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2E",
+      "object": "RASSVET-3 5",
+      "closest_km": 1.3011409439651722,
+      "relative_speed_km_s": 15.224316777644722,
+      "time_utc": "2026-11-27 07:48:47",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "SENTINEL-1C",
+      "object": "IRIDIUM 33 DEB",
+      "closest_km": 1.3790579168576784,
+      "relative_speed_km_s": 14.530885563384679,
+      "time_utc": "2026-11-27 10:04:19",
+      "object_type": "debris"
+    },
+    {
+      "satellite": "CARTOSAT-2E",
+      "object": "KONDOR-FKA NO. 1",
+      "closest_km": 1.4842946671491402,
+      "relative_speed_km_s": 13.941350792272939,
+      "time_utc": "2026-11-27 22:14:44",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2F",
+      "object": "RASSVET-3 6",
+      "closest_km": 1.8334379351977677,
+      "relative_speed_km_s": 15.186588163923261,
+      "time_utc": "2026-11-27 08:11:50",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2C",
+      "object": "2023-091P",
+      "closest_km": 2.0464714689765464,
+      "relative_speed_km_s": 0.42612764036943795,
+      "time_utc": "2026-11-26 06:24:29",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2A",
+      "object": "KUIPER-00493",
+      "closest_km": 2.0879574858025145,
+      "relative_speed_km_s": 5.910655394691131,
+      "time_utc": "2026-11-27 04:37:29",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2A",
+      "object": "KUIPER-00500",
+      "closest_km": 2.169644424696425,
+      "relative_speed_km_s": 12.785016616565672,
+      "time_utc": "2026-11-25 21:13:47",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2B",
+      "object": "KUIPER-00594",
+      "closest_km": 2.188155480049393,
+      "relative_speed_km_s": 6.168018005829647,
+      "time_utc": "2026-11-25 14:17:08",
+      "object_type": "active satellite"
+    },
+    {
+      "satellite": "CARTOSAT-2D",
+      "object": "RASSVET-3 8",
+      "closest_km": 2.2544962595764013,
+      "relative_speed_km_s": 15.18350422016527,
+      "time_utc": "2026-11-26 08:48:26",
+      "object_type": "active satellite"
+    }
+  ],
+  "config": {
+    "trigger_flooded_share": 0.3,
+    "cell_px": 18,
+    "min_cropland_share": 0.1,
+    "sum_insured_per_ha": null,
+    "farmer_premium_rate": 0.02,
+    "high_risk_log10": -6,
+    "screen_hours": 72,
+    "screen_step_s": 60,
+    "refine_within_km": 500,
+    "report_within_km": 10.0
+  }
+}

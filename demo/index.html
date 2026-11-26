@@ -1,0 +1,673 @@
+<meta charset="utf-8">
+<title>OrbitWise Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: sticky mission bar with tabs; each view = summary row, then a working instrument (map / chart) beside its controls. */
+:root {
+  --bg: #f4f6f9; --surface: #ffffff; --surface-2: #eef2f7; --line: #dbe2ec;
+  --ink: #0f1e33; --muted: #566579; --faint: #8a97a8;
+  --water: #2563eb; --violet: #6a4ce2; --water-soft: #5ac8fa; --base: #e8682a; --aqua: #0e9f8a; --alert: #c2410c; --ok: #15803d;
+  --chip: #e6edf8;
+  --f-display: "Space Grotesk", "Segoe UI", Arial, sans-serif;
+  --f-body: "Inter", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --radius: 12px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1424; --surface: #111d31; --surface-2: #17263e; --line: #23344f;
+  --ink: #e6edf7; --muted: #9aaabf; --faint: #6f7f96;
+  --water: #4b8cff; --violet: #9887ef; --water-soft: #7fd3ff; --base: #f08a4b; --aqua: #2cc2a8; --alert: #fb8b4b; --ok: #4ade80;
+  --chip: #1c2d48; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b1424; --surface: #111d31; --surface-2: #17263e; --line: #23344f;
+  --ink: #e6edf7; --muted: #9aaabf; --faint: #6f7f96;
+  --water: #4b8cff; --violet: #9887ef; --water-soft: #7fd3ff; --base: #f08a4b; --aqua: #2cc2a8; --alert: #fb8b4b; --ok: #4ade80;
+  --chip: #1c2d48; color-scheme: dark; }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); margin: 0; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+h1, h2, h3 { font-family: var(--f-display); letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+h2 { font-size: 1.6rem; } h3 { font-size: 1.05rem; }
+p { margin: 0; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bar .wrap { display: flex; align-items: center; gap: 20px; padding-block: 10px; flex-wrap: wrap; }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+.brand svg { flex: none; }
+nav { display: flex; gap: 4px; flex-wrap: wrap; }
+nav a { color: var(--muted); text-decoration: none; padding: 7px 12px; border-radius: 8px; font-weight: 500; font-size: 0.92rem; }
+nav a:hover { background: var(--surface-2); color: var(--ink); }
+nav a[aria-current="page"] { background: var(--chip); color: var(--ink); }
+nav a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+.track { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; margin-left: 4px; }
+.tA { background: color-mix(in srgb, var(--water) 16%, transparent); color: var(--water); }
+.tB { background: color-mix(in srgb, var(--base) 18%, transparent); color: var(--base); }
+
+main { padding-block: 28px 64px; }
+section.view { display: grid; gap: 22px; }
+.eyebrow { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.lead { color: var(--muted); max-width: 72ch; font-size: 1rem; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; min-width: 0; }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.kpi { padding: 16px 18px; }
+.kpi .v { font-family: var(--f-display); font-size: 2rem; font-weight: 700; line-height: 1.1; margin-block: 4px; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--muted); font-size: 0.88rem; }
+@media (max-width: 900px) { .grid2, .grid3 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* pipeline */
+.pipe { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.stage { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; cursor: pointer; color: var(--ink); font: inherit; display: grid; gap: 6px; }
+.stage:hover { border-color: var(--water); }
+.stage .n { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); }
+.stage b { font-family: var(--f-display); font-size: 1rem; }
+.stage span { color: var(--muted); font-size: 0.86rem; }
+@media (max-width: 900px) { .pipe { grid-template-columns: 1fr 1fr; } }
+
+/* controls */
+.ctrl { display: grid; gap: 6px; }
+.ctrl label { font-weight: 600; font-size: 0.9rem; display: flex; justify-content: space-between; gap: 10px; }
+.ctrl label output { font-family: var(--f-mono); font-weight: 600; color: var(--water); }
+input[type=range] { width: 100%; accent-color: var(--water); }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 9px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button { border: 0; background: transparent; color: var(--muted); padding: 6px 11px; border-radius: 7px; font: 500 0.86rem var(--f-body); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.checks { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: 0.9rem; }
+.checks label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+input[type=number], select, input[type=search] { font: 500 0.92rem var(--f-mono); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+.stat .v { font-family: var(--f-display); font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stat .l { color: var(--muted); font-size: 0.8rem; }
+.note { font-size: 0.82rem; color: var(--muted); }
+
+/* map */
+.mapbox { position: relative; background: #05080d; border-radius: 10px; overflow: hidden; }
+.mapbox canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+.tip { position: absolute; pointer-events: none; background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 0.8rem; line-height: 1.4; box-shadow: 0 4px 16px rgba(0,0,0,.18); max-width: 240px; z-index: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.82rem; color: var(--muted); align-items: center; }
+
+/* charts */
+.chart { width: 100%; overflow: visible; }
+.chart text { fill: var(--muted); font: 11px var(--f-body); }
+.chart .axis line, .chart .grid line { stroke: var(--line); }
+.chart .lbl { fill: var(--ink); font: 600 11px var(--f-mono); }
+.chartwrap { position: relative; }
+
+/* confusion */
+.conf { display: grid; grid-template-columns: auto 1fr 1fr; gap: 4px; font-size: 0.82rem; }
+.conf div { padding: 8px; border-radius: 6px; text-align: center; }
+.conf .h { color: var(--muted); font-weight: 600; background: transparent; }
+.conf .tp { background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.conf .tn { background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.conf .fp { background: color-mix(in srgb, var(--base) 18%, transparent); }
+.conf .fn { background: color-mix(in srgb, var(--alert) 30%, transparent); }
+.conf b { display: block; font: 700 1.2rem var(--f-display); }
+.metrics { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; margin-top: 10px; }
+.metrics div { background: var(--surface-2); border-radius: 8px; padding: 8px; }
+.metrics b { font: 700 1.05rem var(--f-display); display: block; font-variant-numeric: tabular-nums; }
+.metrics span { font-size: 0.74rem; color: var(--muted); }
+
+.pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+.p-alert { background: color-mix(in srgb, var(--alert) 18%, transparent); color: var(--alert); }
+.p-ok { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.p-miss { background: var(--alert); color: #fff; }
+.verdict { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 0.88rem; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--f-mono); text-align: right; }
+
+/* table */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+th[aria-sort]::after { content: " ↕"; color: var(--faint); }
+th[aria-sort="ascending"]::after { content: " ↑"; color: var(--water); } th[aria-sort="descending"]::after { content: " ↓"; color: var(--water); }
+td.num { font-family: var(--f-mono); text-align: right; } th.num { text-align: right; }
+tr.hl td { background: color-mix(in srgb, var(--base) 12%, transparent); }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 0.9rem; }
+.flow span.step { background: var(--surface-2); border-radius: 8px; padding: 6px 10px; }
+.flow span.arr { color: var(--faint); }
+ul.tight { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.foot { color: var(--faint); font-size: 0.8rem; margin-top: 30px; }
+@media (prefers-reduced-motion: no-preference) { .stage, nav a, .seg button { transition: background .15s, border-color .15s; } }
+</style>
+
+<header class="bar">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="6" fill="var(--water)"/><ellipse cx="13" cy="13" rx="12" ry="4.5" fill="none" stroke="var(--base)" stroke-width="1.6" transform="rotate(-25 13 13)"/></svg>
+      OrbitWise
+    </div>
+    <nav aria-label="Sections">
+      <a href="#overview">Overview</a>
+      <a href="#flood">Flood map <span class="track tA">A</span></a>
+      <a href="#flood-ai">Flood AI <span class="track tA">A</span></a>
+      <a href="#collision">Collision risk <span class="track tB">B</span></a>
+      <a href="#debris">Debris screen <span class="track tB">B</span></a>
+      <a href="#method">Method &amp; limits</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- OVERVIEW -->
+<section class="view" id="v-overview">
+  <div style="display:grid; gap:10px">
+    <p class="eyebrow">Boeing hackathon · Track A + Track B</p>
+    <h1 style="font-size:clamp(1.9rem,4vw,2.8rem)">Flood evidence from orbit, and the satellites that make it possible</h1>
+    <p class="lead">Every number on this page comes from one working program, <span class="mono">orbitwise.py</span>, run on real data: Sentinel-1 radar of the 2018 Kerala flood, expert-labelled flood imagery, real ESA collision warnings and today’s public orbits. Explore each stage below.</p>
+  </div>
+  <div class="kpis">
+    <div class="card kpi"><p class="eyebrow">Kerala, 21 Aug 2018</p><p class="v" id="k-water">–</p><p class="l">new flood water mapped from radar</p></div>
+    <div class="card kpi"><p class="eyebrow">Flood AI</p><p class="v" id="k-ai">–</p><p class="l">better than the standard method on test floods</p></div>
+    <div class="card kpi"><p class="eyebrow">Collision risk, 2 days early</p><p class="v" id="k-caught">–</p><p class="l">dangerous events caught (baseline: <span id="k-caught-b"></span>)</p></div>
+    <div class="card kpi"><p class="eyebrow">This week’s screen</p><p class="v" id="k-closest">–</p><p class="l" id="k-closest-l">closest approach to Sentinel-1</p></div>
+  </div>
+  <div class="card" style="display:grid; gap:14px">
+    <h3>Five stages, one command</h3>
+    <div class="pipe">
+      <button class="stage" data-go="flood-ai"><span class="n">1 · Track A</span><b>Flood AI</b><span>Learns flood water from 650,000 expert-labelled radar pixels</span></button>
+      <button class="stage" data-go="flood"><span class="n">2 · Track A</span><b>Flood map</b><span>Before vs after radar of Kerala 2018 → new water</span></button>
+      <button class="stage" data-go="flood"><span class="n">3 · Track A</span><b>Trigger</b><span>~1 km cells where flooded farmland crosses a payout rule</span></button>
+      <button class="stage" data-go="collision"><span class="n">4 · Track B</span><b>Collision risk</b><span>Real ESA warnings: is this approach dangerous, 2 days ahead?</span></button>
+      <button class="stage" data-go="debris"><span class="n">5 · Track B</span><b>Debris screen</b><span>72-hour screen of Sentinel-1 and Cartosat vs 14,334 objects</span></button>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="card" style="display:grid; gap:10px">
+      <h3>How the two tracks fit together</h3>
+      <div class="flow"><span class="track tA">Track A</span><span class="step">Sentinel-1 radar</span><span class="arr">→</span><span class="step">Flood map</span><span class="arr">→</span><span class="step">Flooded farmland</span><span class="arr">→</span><span class="step">Evidence for insurer</span></div>
+      <div class="flow"><span class="track tB">Track B</span><span class="step">Screen the satellites</span><span class="arr">→</span><span class="step">Score risk 2 days ahead</span><span class="arr">→</span><span class="step">Operator verifies</span><span class="arr">→</span><span class="step">Keep imagery flowing</span></div>
+      <p class="note">Track A depends on a few radar satellites. In 2016 debris damaged Sentinel-1A; in 2021 Sentinel-1B failed (a power fault), and India went from being imaged about every 6 days to every 12.</p>
+    </div>
+    <div class="card" style="display:grid; gap:10px">
+      <h3>Why it matters</h3>
+      <ul class="tight">
+        <li><b>₹26,720 crore</b> damages and losses from the Kerala 2018 floods (Post Disaster Needs Assessment).</li>
+        <li><b>3.2–6.9 lakh ha</b> of Karnataka farmland hit in 2019; the count grew for weeks as surveys continued.</li>
+        <li>PMFBY claims are due within <b>2 months</b> of crop-cutting surveys and harvest (PIB, 19 Jul 2022).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- FLOOD MAP -->
+<section class="view" id="v-flood" hidden>
+  <div style="display:grid; gap:8px">
+    <p class="eyebrow">Stages 2–3 · Track A</p>
+    <h2>Kerala flood, 21 August 2018</h2>
+    <p class="lead">Sentinel-1 radar sees through monsoon cloud. Calm water reflects the signal away, so it shows dark. Toggle the layers, then drag the payout rule and watch which ~1 km cells would pay.</p>
+  </div>
+  <div class="grid2">
+    <div class="card" style="display:grid; gap:10px">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center">
+        <div class="seg" role="group" aria-label="Radar image">
+          <button id="b-before" aria-pressed="false">Before · Apr–May</button>
+          <button id="b-after" aria-pressed="true">After · 21 Aug</button>
+        </div>
+        <div class="checks">
+          <label><input type="checkbox" id="c-base" checked> <span class="sw" style="background:#5ac8fa"></span>Change detection</label>
+          <label><input type="checkbox" id="c-ai" checked> <span class="sw" style="background:#2563eb"></span>AI</label>
+          <label><input type="checkbox" id="c-cells" checked> <span class="sw" style="background:#f97316"></span>Payout cells</label>
+        </div>
+      </div>
+      <div class="mapbox" id="mapbox"><canvas id="map" width="800" height="1500" aria-label="Radar map of central Kerala with flood layers"></canvas><div class="tip" id="maptip" hidden></div></div>
+      <p class="note">Dark = water, bright = buildings, trees and rough ground. Black at left = Arabian Sea (masked). Hover a cell for its numbers. 9.0–10.5°N, 76.0–76.8°E.</p>
+    </div>
+    <div style="display:grid; gap:18px">
+      <div class="card" style="display:grid; gap:14px">
+        <h3>Payout rule</h3>
+        <div class="ctrl"><span class="note">Which flood map drives the trigger</span>
+          <div class="seg" role="group" aria-label="Trigger method">
+            <button id="m-base" aria-pressed="true">Change detection</button>
+            <button id="m-ai" aria-pressed="false">AI</button>
+            <button id="m-dis" aria-pressed="false">Where they disagree</button>
+          </div>
+        </div>
+        <div class="ctrl"><label for="s-trig">Pay when farmland flooded ≥ <output id="o-trig">30%</output></label><input type="range" id="s-trig" min="10" max="80" step="5" value="30"></div>
+        <div class="ctrl"><label for="s-min">Cell must be at least <output id="o-min">10%</output> farmland</label><input type="range" id="s-min" min="5" max="50" step="5" value="10"></div>
+        <div class="ctrl"><label for="i-si">Sum insured per hectare (₹), assumed</label><input type="number" id="i-si" value="50000" min="0" step="5000"></div>
+        <div class="stats">
+          <div class="stat"><div class="v" id="r-cells">–</div><div class="l">cells triggered</div></div>
+          <div class="stat"><div class="v" id="r-ha">–</div><div class="l">flooded farmland in them</div></div>
+          <div class="stat"><div class="v" id="r-rs">–</div><div class="l">insured value under assessment</div></div>
+          <div class="stat"><div class="v" id="r-prem">–</div><div class="l">farmer premium per ha (2% PMFBY cap)</div></div>
+        </div>
+        <p class="note" id="r-note"></p>
+      </div>
+      <div class="card" style="display:grid; gap:10px">
+        <h3>The two flood maps</h3>
+        <div class="stats">
+          <div class="stat"><div class="v" id="f-bw">–</div><div class="l">new water · change detection</div></div>
+          <div class="stat"><div class="v" id="f-aw">–</div><div class="l">new water · AI</div></div>
+          <div class="stat"><div class="v" id="f-bc">–</div><div class="l">farmland · change detection</div></div>
+          <div class="stat"><div class="v" id="f-ac">–</div><div class="l">farmland · AI</div></div>
+        </div>
+        <p class="note">Check against an official map: in Alappuzha + Kottayam we find <b id="f-box"></b> on 21 Aug; IWMI / UN-SPIDER measured <b>407 km²</b> there on 14 Aug, at the peak, before the water receded. The AI ran on 55 m pixels but learned from 10 m images, so it finds less water here. Disagreement is where field checks would go.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FLOOD AI -->
+<section class="view" id="v-flood-ai" hidden>
+  <div style="display:grid; gap:8px">
+    <p class="eyebrow">Stage 1 · Track A</p>
+    <h2>Does the flood AI work?</h2>
+    <p class="lead">Trained on Sen1Floods11: radar images from 11 floods on 6 continents where experts drew the flood by hand. Scored by water IoU: overlap with the experts’ water divided by everything either side called water (1.0 = perfect).</p>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="chartwrap" id="ioucw"><svg class="chart" id="iou" viewBox="0 0 640 340" role="img" aria-label="Grouped bar chart of water IoU by method and flood group"></svg><div class="tip" id="iouttip" hidden></div></div>
+      <div class="legend" style="margin-top:8px"><span><span class="sw" style="background:var(--aqua)"></span> Fixed threshold</span><span><span class="sw" style="background:var(--base)"></span> Otsu (standard)</span><span><span class="sw" style="background:var(--water)"></span> Our AI</span><span><span class="sw" style="background:var(--violet)"></span> Hybrid (AI + Otsu)</span></div>
+    </div>
+    <div style="display:grid; gap:18px">
+      <div class="card kpi"><p class="eyebrow">Test floods</p><p class="v" id="ai-gain">–</p><p class="l">relative improvement over Otsu</p></div>
+      <div class="card" style="display:grid; gap:8px">
+        <h3>The three methods</h3>
+        <ul class="tight">
+          <li><b>Fixed threshold:</b> any pixel darker than −20 dB is water.</li>
+          <li><b>Otsu:</b> picks a dark/bright cut-off separately for each image, adapting to each scene.</li>
+          <li><b>Our AI:</b> Gradient Boosting on 8 numbers per pixel: two radar bands (VV, VH), their difference, neighbourhood averages and texture.</li>
+          <li><b>Hybrid:</b> 80% the AI’s probability + 20% Otsu’s per-image vote. The weight was chosen by hiding one whole flood event at a time, so it is tuned for floods the model has never seen.</li>
+        </ul>
+        <p class="note">The AI alone is below Otsu on Indian floods and on Bolivia. The hybrid ties Otsu on Indian floods (0.715 vs 0.716) and closes most of the Bolivia gap, while staying ahead on test floods.</p>
+      </div>
+      <div class="card" style="display:grid; gap:8px">
+        <h3>Across 10 floods the model never saw</h3>
+        <div class="stats">
+          <div class="stat"><div class="v">0.477</div><div class="l">Otsu</div></div>
+          <div class="stat"><div class="v">0.493</div><div class="l">Our AI</div></div>
+          <div class="stat"><div class="v" style="color:var(--violet)">0.502</div><div class="l">Hybrid</div></div>
+          <div class="stat"><div class="v">10</div><div class="l">events, each hidden in turn</div></div>
+        </div>
+        <p class="note">Average water IoU when each of the 10 training flood events is held out in turn. Bolivia is one event where Otsu happens to do well; on average the AI beats Otsu and the hybrid beats both.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COLLISION -->
+<section class="view" id="v-collision" hidden>
+  <div style="display:grid; gap:8px">
+    <p class="eyebrow">Stage 4 · Track B</p>
+    <h2>Collision risk, two days before closest approach</h2>
+    <p class="lead">Each event is a real close approach from ESA’s Kelvins dataset. Operators receive warnings (CDMs) over the last 7 days; each carries a collision probability, shown here as a log value: −4 means 1 in 10,000, −6 means 1 in a million. Using only what is known 2 days out, will the final risk reach the high-risk line of 1 in a million?</p>
+  </div>
+
+  <div class="card" style="display:grid; gap:14px">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap">
+      <h3>Event explorer</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center">
+        <div class="seg" role="group" aria-label="Event filter">
+          <button data-filt="danger" aria-pressed="true">Dangerous (<span id="n-danger"></span>)</button>
+          <button data-filt="ai" aria-pressed="false">AI alerts</button>
+          <button data-filt="missed" aria-pressed="false">Missed by AI</button>
+          <button data-filt="all" aria-pressed="false">All</button>
+        </div>
+        <select id="ev-sel" aria-label="Choose an event" style="width:auto; min-width:220px"></select>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="chartwrap" id="tlcw"><svg class="chart" id="tl" viewBox="0 0 640 330" role="img" aria-label="Collision risk of the selected event over the last 7 days"></svg><div class="tip" id="tltip" hidden></div></div>
+      <div style="display:grid; gap:12px">
+        <div class="verdict">
+          <div class="stat"><div class="l">Our AI says</div><div id="ev-ai" style="margin-top:4px"></div></div>
+          <div class="stat"><div class="l">Do nothing says</div><div id="ev-base" style="margin-top:4px"></div></div>
+        </div>
+        <dl class="kv" id="ev-kv"></dl>
+        <p class="note">Solid points: warnings known at the 2-day decision point. Hollow points: warnings that arrive later. “Do nothing” assumes the 2-day risk will not change.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" style="display:grid; gap:10px">
+      <h3>All 1,659 check events: 2-day risk vs final risk</h3>
+      <div class="chartwrap" id="sccw"><svg class="chart" id="sc" viewBox="0 0 640 400" role="img" aria-label="Scatter of risk at 2 days against final risk"></svg><div class="tip" id="sctip" hidden></div></div>
+      <div class="legend"><span><span class="sw" style="background:var(--base)"></span> ended high-risk</span><span><span class="sw" style="background:var(--faint)"></span> ended low-risk</span><span><span class="sw" style="border:2px solid var(--water)"></span> AI alert</span><span>Click a point to open it above.</span></div>
+    </div>
+    <div class="card" style="display:grid; gap:14px">
+      <h3>How accurate is it?</h3>
+      <div class="ctrl"><label for="s-cut">AI alerts when its score ≥ <output id="o-cut"></output></label><input type="range" id="s-cut" min="0.02" max="0.6" step="0.01"></div>
+      <div class="ctrl"><label for="s-bthr">Do nothing alerts when 2-day risk ≥ <output id="o-bthr"></output></label><input type="range" id="s-bthr" min="-9" max="-4" step="0.25" value="-6"></div>
+      <div class="grid2" style="gap:14px">
+        <div><p class="eyebrow" style="margin-bottom:6px">Our AI</p><div id="cm-ai"></div></div>
+        <div><p class="eyebrow" style="margin-bottom:6px">Do nothing</p><div id="cm-base"></div></div>
+      </div>
+      <p class="note">Recall = share of dangerous events caught. Precision = share of alerts that were dangerous. F2 counts recall twice, because a missed collision costs far more than a false alarm. The AI cut-off chosen on separate validation events is <span class="mono" id="o-def"></span>. Only 13 dangerous events are in this check set, so one event moves recall by about 8 points.</p>
+    </div>
+  </div>
+
+  <div class="card" style="display:grid; gap:10px">
+    <h3>Which model? Five models on 8,892 events (5-fold cross-validation)</h3>
+    <div class="chartwrap" id="mdcw"><svg class="chart" id="md" viewBox="0 0 900 300" role="img" aria-label="Accuracy, recall and precision of five models"></svg><div class="tip" id="mdtip" hidden></div></div>
+    <div class="legend"><span><span class="sw" style="background:var(--water)"></span> Accuracy</span><span><span class="sw" style="background:var(--base)"></span> High-risk events caught (recall)</span><span><span class="sw" style="background:var(--aqua)"></span> Alerts that were real (precision)</span></div>
+    <p class="note">Accuracy is misleading when 95% of events are low-risk. Gradient Boosting gives the cleanest alerts and is tuned for recall; Random Forest catches a little more at default settings; neither yet beats “do nothing” at catching danger.</p>
+  </div>
+</section>
+
+<!-- DEBRIS -->
+<section class="view" id="v-debris" hidden>
+  <div style="display:grid; gap:8px">
+    <p class="eyebrow">Stage 5 · Track B</p>
+    <h2>This week’s close approaches</h2>
+    <p class="lead" id="db-lead"></p>
+  </div>
+  <div class="kpis" id="db-kpis"></div>
+  <div class="card" style="display:flex; gap:16px; flex-wrap:wrap; align-items:end">
+    <div class="ctrl"><span class="note">Satellites</span><div class="seg" role="group" aria-label="Satellite group">
+      <button data-sat="all" aria-pressed="false">All</button><button data-sat="SENTINEL" aria-pressed="true">Sentinel-1</button><button data-sat="CARTOSAT" aria-pressed="false">Cartosat</button></div></div>
+    <div class="ctrl"><span class="note">Passing object</span><div class="seg" role="group" aria-label="Object type">
+      <button data-ot="all" aria-pressed="true">All</button><button data-ot="debris" aria-pressed="false">Debris</button><button data-ot="active satellite" aria-pressed="false">Active satellites</button></div></div>
+    <div class="ctrl" style="min-width:220px; flex:1"><label for="s-km">Closer than <output id="o-km">10 km</output></label><input type="range" id="s-km" min="1" max="10" step="0.5" value="10"></div>
+  </div>
+  <div class="grid2">
+    <div class="card"><div class="chartwrap" id="dbcw"><svg class="chart" id="dbc" viewBox="0 0 640 380" role="img" aria-label="Closest approaches"></svg><div class="tip" id="dbtip" hidden></div></div>
+      <div class="legend"><span><span class="sw" style="background:var(--base)"></span> debris</span><span><span class="sw" style="background:var(--aqua)"></span> active satellite</span></div></div>
+    <div class="card" style="display:grid; gap:10px">
+      <h3>Reading this</h3>
+      <ul class="tight">
+        <li>Public orbit data (TLEs) are accurate to about a kilometre, so these are screening flags, not collision predictions.</li>
+        <li>An operator then requests precise data (a CDM). Those warnings are exactly what the stage 4 AI scores.</li>
+        <li>Fengyun-1C: weather satellite destroyed in a 2007 anti-satellite test. Iridium 33 and Cosmos 2251: collided in 2009.</li>
+        <li>Orbits change daily; refresh the orbit files from CelesTrak before a live demo.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card"><div class="tablewrap" style="max-height:460px; overflow:auto"><table id="dbt"><thead><tr>
+    <th data-k="sat" aria-sort="none">Satellite</th><th data-k="obj" aria-sort="none">Passes</th><th data-k="type" aria-sort="none">Type</th>
+    <th data-k="km" class="num" aria-sort="ascending">Distance (km)</th><th data-k="v" class="num" aria-sort="none">Speed (km/s)</th><th data-k="t" aria-sort="none">When (UTC)</th></tr></thead><tbody></tbody></table></div></div>
+</section>
+
+<!-- METHOD -->
+<section class="view" id="v-method" hidden>
+  <div style="display:grid; gap:8px">
+    <p class="eyebrow">Method &amp; limits</p>
+    <h2>What is built, and what is not</h2>
+  </div>
+  <div class="grid3">
+    <div class="card" style="display:grid; gap:8px"><h3>Data</h3><ul class="tight">
+      <li>Sentinel-1 RTC radar (Microsoft Planetary Computer), orbit track 165: before = median of 23 Apr, 5 May, 17 May 2018; after = 21 Aug 2018.</li>
+      <li>ESA WorldCover 2021 land use (farmland = class 40).</li>
+      <li>Sen1Floods11 hand-labelled flood imagery (446 chips).</li>
+      <li>ESA Kelvins Collision Avoidance Challenge (162,634 warnings, 13,154 events).</li>
+      <li>CelesTrak public orbits: Sentinel-1, Cartosat, 4 debris clouds, 15,829 active satellites.</li></ul></div>
+    <div class="card" style="display:grid; gap:8px"><h3>Built and demonstrated</h3><ul class="tight">
+      <li>Flood AI trained and scored against two baselines.</li>
+      <li>Kerala 2018 flood mapped two ways, with farmland overlay.</li>
+      <li>Simulated payout trigger on ~1 km cells.</li>
+      <li>Collision-risk model 2 days ahead on real ESA warnings.</li>
+      <li>72-hour screen of 11 satellites against 14,334 objects.</li></ul></div>
+    <div class="card" style="display:grid; gap:8px"><h3>Not claimed</h3><ul class="tight">
+      <li>Flood exposure is not measured crop loss; ₹ figures use an assumed sum insured.</li>
+      <li>No real policies, payments or village boundaries.</li>
+      <li>The AI–radar cross-check and risk pricing are proposed next steps.</li>
+      <li>Screening flags are not collision predictions; no satellite control.</li>
+      <li>Sentinel-1B failed from a power fault, not debris.</li></ul></div>
+  </div>
+  <p class="foot">OrbitWise · RV College of Engineering · Boeing hackathon. Sources: Kerala Post Disaster Needs Assessment; Government of Karnataka (10 Aug 2019); PIB, Ministry of Agriculture &amp; Farmers Welfare (19 Jul 2022); IWMI / UN-SPIDER flood map (14 Aug 2018).</p>
+</section>
+
+</main>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const NS = "http://www.w3.org/2000/svg";
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const fmt = (n, d = 0) => Number(n).toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
+const oneIn = lg => { if (lg <= -29.9) return "≈ 0"; const n = Math.pow(10, -lg); if (n < 1.5) return "near certain";
+  if (n >= 1e9) return "1 in " + fmt(n / 1e9, 1) + " billion"; if (n >= 1e6) return "1 in " + fmt(n / 1e6, 1) + " million"; if (n >= 1e3) return "1 in " + fmt(n / 1e3, 1) + " thousand"; return "1 in " + fmt(n, 0); };
+const rupees = v => v >= 1e7 ? "₹" + fmt(v / 1e7, 1) + " cr" : v >= 1e5 ? "₹" + fmt(v / 1e5, 1) + " lakh" : "₹" + fmt(v, 0);
+function el(tag, attrs = {}, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+function tipAt(tip, wrap, evt, html) { tip.innerHTML = html; tip.hidden = false; const r = wrap.getBoundingClientRect();
+  let x = evt.clientX - r.left + 14, y = evt.clientY - r.top + 14; if (x + 250 > r.width) x = evt.clientX - r.left - 250; tip.style.left = Math.max(4, x) + "px"; tip.style.top = y + "px"; }
+
+let D;
+const VIEWS = ["overview", "flood", "flood-ai", "collision", "debris", "method"];
+function route() { const h = location.hash.slice(1); const v = VIEWS.includes(h) ? h : "overview";
+  VIEWS.forEach(n => { $("#v-" + n).hidden = n !== v; }); $$("nav a").forEach(a => a.setAttribute("aria-current", a.getAttribute("href") === "#" + v ? "page" : "false"));
+  if (D) { if (v === "flood") drawMap(); if (v === "collision") { drawTimeline(); drawScatter(); drawModels(); } if (v === "flood-ai") drawIoU(); if (v === "debris") drawDebris(); } }
+window.addEventListener("hashchange", () => { route(); window.scrollTo(0, 0); });
+$$(".stage").forEach(b => b.addEventListener("click", () => { location.hash = b.dataset.go; }));
+function seg(group, cb) { const bs = $$(group); bs.forEach(b => b.addEventListener("click", () => { bs.forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); cb(b); })); }
+
+/* ---------------- FLOOD MAP ---------------- */
+const imgs = {}; let showAfter = true, method = "base";
+function loadImg(k, src) { return new Promise(res => { const i = new Image(); i.onload = () => { imgs[k] = i; res(); }; i.onerror = () => res(); i.src = src; }); }
+function cellStats() {
+  const F = D.flood, trig = +$("#s-trig").value / 100, minc = +$("#s-min").value / 100 * F.cell_px * F.cell_px;
+  const res = { base: new Uint8Array(F.crop.length), ai: new Uint8Array(F.crop.length) };
+  for (let i = 0; i < F.crop.length; i++) { const c = F.crop[i]; if (c < minc || c === 0) continue;
+    if (F.fl_base[i] / c >= trig) res.base[i] = 1; if (F.fl_ai[i] / c >= trig) res.ai[i] = 1; }
+  return res;
+}
+function drawMap() {
+  const F = D.flood, cv = $("#map"), ctx = cv.getContext("2d");
+  ctx.fillStyle = "#05080d"; ctx.fillRect(0, 0, cv.width, cv.height);
+  const bg = imgs[showAfter ? "after" : "before"]; if (bg) ctx.drawImage(bg, 0, 0, cv.width, cv.height);
+  if ($("#c-base").checked && imgs.base) ctx.drawImage(imgs.base, 0, 0, cv.width, cv.height);
+  if ($("#c-ai").checked && imgs.ai) ctx.drawImage(imgs.ai, 0, 0, cv.width, cv.height);
+  const st = cellStats(), cs = cv.width * F.grid_frac_w / F.cell_cols;
+  if ($("#c-cells").checked) {
+    for (let r = 0; r < F.cell_rows; r++) for (let c = 0; c < F.cell_cols; c++) { const i = r * F.cell_cols + c;
+      let col = null;
+      if (method === "dis") { if (st.base[i] && !st.ai[i]) col = "rgba(249,115,22,0.85)"; else if (st.ai[i] && !st.base[i]) col = "rgba(168,85,247,0.9)"; else if (st.ai[i] && st.base[i]) col = "rgba(250,204,21,0.8)"; }
+      else if ((method === "base" ? st.base : st.ai)[i]) col = "rgba(249,115,22,0.8)";
+      if (col) { ctx.fillStyle = col; ctx.fillRect(c * cs + 0.5, r * cs + 0.5, cs - 1, cs - 1); } }
+  }
+  // stats
+  const pick = method === "ai" ? st.ai : st.base, fl = method === "ai" ? F.fl_ai : F.fl_base;
+  let n = 0, px = 0, nb = 0, na = 0, both = 0;
+  for (let i = 0; i < pick.length; i++) { if (pick[i]) { n++; px += fl[i]; } nb += st.base[i]; na += st.ai[i]; both += st.base[i] & st.ai[i]; }
+  const ha = px * F.px_km2 * 100, si = Math.max(0, +$("#i-si").value || 0);
+  if (method === "dis") {
+    $("#r-cells").textContent = fmt(nb + na - both); $("#r-ha").textContent = fmt(both) + " agree";
+    $("#r-rs").textContent = fmt(nb - both) + " / " + fmt(na - both); $("#r-prem").textContent = rupees(si * 0.02);
+    $("#r-note").innerHTML = '<span class="sw" style="background:#facc15"></span> both maps trigger &nbsp; <span class="sw" style="background:#f97316"></span> change detection only &nbsp; <span class="sw" style="background:#a855f7"></span> AI only. The third tile shows cells triggered by only one map (change detection / AI): where field checks would go.';
+  } else {
+    $("#r-cells").textContent = fmt(n); $("#r-ha").textContent = fmt(ha) + " ha"; $("#r-rs").textContent = rupees(ha * si); $("#r-prem").textContent = rupees(si * 0.02);
+    $("#r-note").textContent = "Illustrative: insured value of flooded farmland in triggered cells at the assumed rate, not a verified loss or payable claim. The cells stand in for villages; real policies use insured parcels.";
+  }
+}
+function mapHover(e) {
+  const F = D.flood, cv = $("#map"), r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+  const c = Math.floor(x / F.grid_frac_w * F.cell_cols), rr = Math.floor(y / F.grid_frac_h * F.cell_rows);
+  const tip = $("#maptip"); if (c < 0 || rr < 0 || c >= F.cell_cols || rr >= F.cell_rows) { tip.hidden = true; return; }
+  const i = rr * F.cell_cols + c, crop = F.crop[i], b = F.bounds;
+  const lat = b.north - y * (b.north - b.south), lon = b.west + x * (b.east - b.west);
+  const ha = v => fmt(v * F.px_km2 * 100) + " ha";
+  const sb = crop ? F.fl_base[i] / crop * 100 : 0, sa = crop ? F.fl_ai[i] / crop * 100 : 0;
+  tipAt(tip, $("#mapbox"), e, `<b class="mono">${lat.toFixed(3)}°N ${lon.toFixed(3)}°E</b><br>Farmland: ${ha(crop)}<br>Flooded · change detection: ${sb.toFixed(0)}%<br>Flooded · AI: ${sa.toFixed(0)}%`);
+}
+
+/* ---------------- FLOOD AI CHART ---------------- */
+function drawIoU() {
+  const svg = $("#iou"); svg.innerHTML = ""; const acc = D.flood.accuracy;
+  const groups = [["Test floods", "Test floods"], ["Indian floods (test)", "Indian floods"], ["Unseen flood (Bolivia)", "Unseen flood (Bolivia)"]];
+  const meth = [["Fixed threshold (VH < -20 dB)", "--aqua", "Fixed threshold"], ["Otsu threshold", "--base", "Otsu"], ["AI (Gradient Boosting)", "--water", "Our AI"], ["Hybrid (AI + Otsu)", "--violet", "Hybrid (AI + Otsu)"]];
+  const W = 640, H = 340, L = 40, B = 300, T = 20, ymax = 0.85, y = v => B - (v / ymax) * (B - T);
+  const gax = el("g", { class: "grid" }, svg);
+  [0, 0.2, 0.4, 0.6, 0.8].forEach(v => { el("line", { x1: L, x2: W - 10, y1: y(v), y2: y(v) }, gax); el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = v.toFixed(1); });
+  const gw = (W - L - 20) / 3, bw = gw / 5.4;
+  groups.forEach(([key, lab], gi) => { const x0 = L + 10 + gi * gw;
+    meth.forEach(([m, col, mn], mi) => { const rec = acc.find(a => a.evaluated_on === key && a.method === m); if (!rec) return; const v = rec.IoU_water;
+      const x = x0 + mi * (bw + 4), r = el("rect", { x, y: y(v), width: bw, height: B - y(v), rx: 3, fill: css(col) }, svg);
+      el("text", { x: x + bw / 2, y: y(v) - 5, "text-anchor": "middle", class: "lbl" }, svg).textContent = v.toFixed(2);
+      r.addEventListener("mousemove", e => tipAt($("#iouttip"), $("#ioucw"), e, `<b>${mn}</b> · ${lab}<br>Water IoU <span class="mono">${v.toFixed(3)}</span><br>F1 ${rec.F1_water.toFixed(3)} · accuracy ${(rec.accuracy * 100).toFixed(1)}%`));
+      r.addEventListener("mouseleave", () => $("#iouttip").hidden = true); });
+    el("text", { x: x0 + 2 * (bw + 4) - 2, y: B + 20, "text-anchor": "middle" }, svg).textContent = lab; });
+}
+
+/* ---------------- COLLISION ---------------- */
+let EV = [], sel = null, filt = "danger";
+const HI = -6;
+function aiAlert(e) { return e.ai >= +$("#s-cut").value; }
+function baseAlert(e) { return e.r2 >= +$("#s-bthr").value; }
+function outcome(alert, y) { return alert && y ? ["Caught", "p-ok"] : alert && !y ? ["False alarm", "p-alert"] : !alert && y ? ["Missed", "p-miss"] : ["Correctly quiet", "p-ok"]; }
+function listEvents() {
+  const s = $("#ev-sel"); const pool = EV.filter(e => filt === "danger" ? e.y : filt === "ai" ? aiAlert(e) : filt === "missed" ? e.y && !aiAlert(e) : true)
+    .sort((a, b) => b.fin - a.fin).slice(0, 400);
+  s.innerHTML = pool.map(e => `<option value="${e.id}">Event ${e.id} · final ${e.fin.toFixed(1)} · ${e.y ? "dangerous" : "low"}</option>`).join("") || "<option>No events</option>";
+  if (pool.length && !pool.find(e => e.id === sel?.id)) sel = pool[0];
+  if (sel) s.value = sel.id;
+}
+function drawTimeline() {
+  const svg = $("#tl"); svg.innerHTML = ""; if (!sel) return; const e = sel;
+  const W = 640, H = 330, L = 46, R = 16, T = 16, B = 290;
+  const lo = Math.min(-12, Math.floor(Math.min(...e.tl.map(p => p[1]), e.r2) / 2) * 2), hi = 0;
+  const x = d => L + (7 - d) / 7 * (W - L - R), y = v => T + (hi - v) / (hi - lo) * (B - T);
+  const g = el("g", { class: "grid" }, svg);
+  for (let v = 0; v >= lo; v -= (lo < -20 ? 5 : 2)) { el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v) }, g); el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = v; }
+  for (let d = 7; d >= 0; d--) el("text", { x: x(d), y: B + 18, "text-anchor": "middle" }, svg).textContent = d;
+  el("text", { x: (L + W) / 2, y: H - 2, "text-anchor": "middle" }, svg).textContent = "days before closest approach";
+  el("text", { x: 12, y: (T + B) / 2, transform: `rotate(-90 12 ${(T + B) / 2})`, "text-anchor": "middle" }, svg).textContent = "log₁₀ collision probability";
+  // future zone
+  el("rect", { x: x(2), y: T, width: x(0) - x(2), height: B - T, fill: css("--surface-2"), opacity: 0.7 }, svg);
+  el("line", { x1: x(2), x2: x(2), y1: T, y2: B, stroke: css("--ink"), "stroke-dasharray": "4 4", "stroke-width": 1.2 }, svg);
+  el("text", { x: x(2) + 6, y: T + 14, class: "lbl" }, svg).textContent = "decision point · 2 days";
+  el("line", { x1: L, x2: W - R, y1: y(HI), y2: y(HI), stroke: css("--alert"), "stroke-dasharray": "6 4", "stroke-width": 1.4 }, svg);
+  el("text", { x: L + 6, y: y(HI) - 6, fill: css("--alert"), style: "font:600 11px var(--f-mono);fill:" + css("--alert") }, svg).textContent = "high-risk line −6 (1 in a million)";
+  const pts = e.tl.map(p => [x(p[0]), y(p[1]), p]);
+  el("polyline", { points: pts.map(p => p[0] + "," + p[1]).join(" "), fill: "none", stroke: css("--water"), "stroke-width": 2 }, svg);
+  pts.forEach(([px, py, p]) => { const known = p[0] >= 2; const c = el("circle", { cx: px, cy: py, r: 5.5, fill: known ? css("--water") : css("--surface"), stroke: css("--water"), "stroke-width": 2 }, svg);
+    c.addEventListener("mousemove", ev => tipAt($("#tltip"), $("#tlcw"), ev, `<b>${p[0].toFixed(2)} days out</b><br>log₁₀ risk <span class="mono">${p[1].toFixed(2)}</span><br>${oneIn(p[1])}<br>${known ? "known at the decision point" : "arrives after the decision"}`));
+    c.addEventListener("mouseleave", () => $("#tltip").hidden = true); });
+  // verdict
+  const a = aiAlert(e), b = baseAlert(e), oa = outcome(a, e.y), ob = outcome(b, e.y);
+  $("#ev-ai").innerHTML = `<span class="pill ${a ? "p-alert" : "p-ok"}">${a ? "ALERT" : "No alert"}</span> <span class="pill ${oa[1]}">${oa[0]}</span>`;
+  $("#ev-base").innerHTML = `<span class="pill ${b ? "p-alert" : "p-ok"}">${b ? "ALERT" : "No alert"}</span> <span class="pill ${ob[1]}">${ob[0]}</span>`;
+  $("#ev-kv").innerHTML = `<dt>Risk at decision point (${e.d2.toFixed(1)} days)</dt><dd>${e.r2.toFixed(2)} · ${oneIn(e.r2)}</dd>
+    <dt>Final risk</dt><dd>${e.fin.toFixed(2)} · ${oneIn(e.fin)}</dd>
+    <dt>Outcome</dt><dd>${e.y ? "dangerous (≥ −6)" : "low risk"}</dd>
+    <dt>AI score</dt><dd>${e.ai.toFixed(3)} (alert ≥ ${(+$("#s-cut").value).toFixed(2)})</dd>
+    <dt>Miss distance · speed</dt><dd>${fmt(e.miss)} m · ${fmt(e.spd)} m/s</dd>
+    <dt>Other object</dt><dd>${e.obj || "unknown"}</dd><dt>Warnings received</dt><dd>${e.tl.length}</dd>`;
+}
+function drawScatter() {
+  const svg = $("#sc"); svg.innerHTML = ""; const W = 640, H = 400, L = 46, R = 14, T = 14, B = 356, lo = -31, hi = 0;
+  const x = v => L + (v - lo) / (hi - lo) * (W - L - R), y = v => T + (hi - v) / (hi - lo) * (B - T);
+  const g = el("g", { class: "grid" }, svg);
+  [-30, -25, -20, -15, -10, -5, 0].forEach(v => { el("line", { x1: L, x2: W - R, y1: y(v), y2: y(v) }, g); el("line", { x1: x(v), x2: x(v), y1: T, y2: B }, g);
+    el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = v; el("text", { x: x(v), y: B + 16, "text-anchor": "middle" }, svg).textContent = v; });
+  el("text", { x: (L + W) / 2, y: H - 4, "text-anchor": "middle" }, svg).textContent = "log₁₀ risk at the 2-day decision point";
+  el("text", { x: 12, y: (T + B) / 2, transform: `rotate(-90 12 ${(T + B) / 2})`, "text-anchor": "middle" }, svg).textContent = "final log₁₀ risk";
+  el("line", { x1: L, x2: W - R, y1: y(HI), y2: y(HI), stroke: css("--alert"), "stroke-dasharray": "6 4" }, svg);
+  const bt = +$("#s-bthr").value; el("line", { x1: x(bt), x2: x(bt), y1: T, y2: B, stroke: css("--muted"), "stroke-dasharray": "3 4" }, svg);
+  el("text", { x: x(bt) + 4, y: T + 12, style: "font:600 10px var(--f-mono)" }, svg).textContent = "do-nothing line";
+  const jit = id => ((id * 2654435761) % 1000) / 1000 - 0.5;
+  const sorted = [...EV].sort((a, b) => a.y - b.y);
+  sorted.forEach(e => { const cx = x(Math.max(lo, e.r2) + (e.r2 <= -29.9 ? jit(e.id) * 0.8 : 0)), cy = y(Math.max(lo, e.fin) + (e.fin <= -29.9 ? jit(e.id + 7) * 0.8 : 0));
+    const c = el("circle", { cx, cy, r: e.y ? 5 : 3.2, fill: e.y ? css("--base") : css("--faint"), "fill-opacity": e.y ? 0.95 : 0.35,
+      stroke: aiAlert(e) ? css("--water") : "none", "stroke-width": aiAlert(e) ? 2 : 0, style: "cursor:pointer" }, svg);
+    c.addEventListener("mousemove", ev => tipAt($("#sctip"), $("#sccw"), ev, `<b>Event ${e.id}</b><br>2-day risk ${e.r2.toFixed(2)} · final ${e.fin.toFixed(2)}<br>AI score ${e.ai.toFixed(3)} · ${aiAlert(e) ? "AI alert" : "no AI alert"}<br>${e.y ? "ended dangerous" : "ended low-risk"}`));
+    c.addEventListener("mouseleave", () => $("#sctip").hidden = true);
+    c.addEventListener("click", () => { sel = e; filt = "all"; $$("[data-filt]").forEach(b => b.setAttribute("aria-pressed", b.dataset.filt === "all")); listEvents(); drawTimeline(); $("#tlcw").scrollIntoView({ behavior: "smooth", block: "center" }); }); });
+}
+function confusion(fn) { let tp = 0, fp = 0, fn_ = 0, tn = 0; EV.forEach(e => { const a = fn(e); if (a && e.y) tp++; else if (a) fp++; else if (e.y) fn_++; else tn++; });
+  const p = tp + fp ? tp / (tp + fp) : 0, r = tp + fn_ ? tp / (tp + fn_) : 0, f2 = p + r ? 5 * p * r / (4 * p + r) : 0; return { tp, fp, fn: fn_, tn, p, r, f2 }; }
+function renderCM(id, m) {
+  $(id).innerHTML = `<div class="conf"><div class="h"></div><div class="h">Dangerous</div><div class="h">Low risk</div>
+    <div class="h" style="text-align:right">Alert</div><div class="tp"><b>${m.tp}</b>caught</div><div class="fp"><b>${m.fp}</b>false alarms</div>
+    <div class="h" style="text-align:right">No alert</div><div class="fn"><b>${m.fn}</b>missed</div><div class="tn"><b>${fmt(m.tn)}</b>quiet</div></div>
+    <div class="metrics"><div><b>${(m.r * 100).toFixed(0)}%</b><span>recall</span></div><div><b>${(m.p * 100).toFixed(1)}%</b><span>precision</span></div><div><b>${m.f2.toFixed(3)}</b><span>F2</span></div><div><b>${m.tp + m.fp}</b><span>alerts</span></div></div>`;
+}
+function updateAccuracy() { $("#o-cut").textContent = (+$("#s-cut").value).toFixed(2); const bt = +$("#s-bthr").value; $("#o-bthr").textContent = bt.toFixed(2) + " (" + oneIn(bt) + ")";
+  renderCM("#cm-ai", confusion(aiAlert)); renderCM("#cm-base", confusion(baseAlert)); }
+function drawModels() {
+  const svg = $("#md"); svg.innerHTML = ""; const M = D.collision.models; const order = ["Baseline: Day-2 estimate", "Logistic Regression", "Decision Tree", "Random Forest", "Gradient Boosting"];
+  const names = { "Baseline: Day-2 estimate": "Do nothing", "Logistic Regression": "Logistic regression", "Decision Tree": "Decision tree", "Random Forest": "Random Forest", "Gradient Boosting": "Gradient Boosting" };
+  const W = 900, H = 300, L = 44, B = 262, T = 18, y = v => B - v * (B - T);
+  const g = el("g", { class: "grid" }, svg); [0, .25, .5, .75, 1].forEach(v => { el("line", { x1: L, x2: W - 10, y1: y(v), y2: y(v) }, g); el("text", { x: L - 6, y: y(v) + 4, "text-anchor": "end" }, svg).textContent = (v * 100) + "%"; });
+  const gw = (W - L - 20) / 5, bw = gw / 4.4; const ms = [["accuracy", "--water", "Accuracy"], ["high_recall", "--base", "High-risk caught"], ["high_precision", "--aqua", "Alerts real"]];
+  order.forEach((k, gi) => { const rec = M.find(m => m.model === k); if (!rec) return; const x0 = L + 14 + gi * gw;
+    ms.forEach(([f, col, lab], mi) => { const v = rec[f], x = x0 + mi * (bw + 4);
+      const r = el("rect", { x, y: y(v), width: bw, height: B - y(v), rx: 3, fill: css(col) }, svg);
+      el("text", { x: x + bw / 2, y: y(v) - 4, "text-anchor": "middle", class: "lbl" }, svg).textContent = Math.round(v * 100) + "%";
+      r.addEventListener("mousemove", e => tipAt($("#mdtip"), $("#mdcw"), e, `<b>${names[k]}</b><br>${lab}: <span class="mono">${(v * 100).toFixed(1)}%</span>`)); r.addEventListener("mouseleave", () => $("#mdtip").hidden = true); });
+    el("text", { x: x0 + 1.5 * (bw + 4), y: B + 20, "text-anchor": "middle", style: k === "Gradient Boosting" ? "font-weight:700;fill:" + css("--ink") : "" }, svg).textContent = names[k] + (k === "Gradient Boosting" ? " (used)" : ""); });
+}
+
+/* ---------------- DEBRIS ---------------- */
+let dbSat = "SENTINEL", dbOt = "all", dbSort = ["km", 1];
+function dbRows() { const km = +$("#s-km").value; return D.debris.rows.filter(r => (dbSat === "all" || r.sat.includes(dbSat)) && (dbOt === "all" || r.type === dbOt) && r.km <= km); }
+function nice(s) { return s.replace(" DEB", " debris").replace("IRS-P5 (CARTOSAT-1)", "Cartosat-1").toLowerCase().replace(/(^|[\s(-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace(/(\d)([a-z])\b/g, (m, a, b) => a + b.toUpperCase()); }
+function drawDebris() {
+  $("#o-km").textContent = (+$("#s-km").value).toFixed(1) + " km";
+  const rows = dbRows(), all = D.debris.rows, s1 = all.filter(r => r.sat.includes("SENTINEL"));
+  const c1 = [...s1].sort((a, b) => a.km - b.km)[0];
+  $("#db-kpis").innerHTML = [[fmt(D.debris.n_objects), `objects screened (${fmt(D.debris.n_debris)} debris + ${fmt(D.debris.n_active)} active)`],
+    [all.length, "approaches under 10 km in 72 h"], [s1.length, "of them involve Sentinel-1"],
+    [c1 ? c1.km.toFixed(1) + " km" : "–", c1 ? `${nice(c1.sat)} vs ${nice(c1.obj)}, ${c1.t.slice(5, 16)} UTC` : ""]]
+    .map(([v, l]) => `<div class="card kpi"><p class="v">${v}</p><p class="l">${l}</p></div>`).join("");
+  // chart: 12 closest of filter
+  const svg = $("#dbc"); svg.innerHTML = ""; const top = [...rows].sort((a, b) => a.km - b.km).slice(0, 12);
+  const W = 640, L = 250, R = 120, T = 10, rh = 29, xmax = 10, x = v => L + v / xmax * (W - L - R);
+  svg.setAttribute("viewBox", `0 0 ${W} ${Math.max(80, T + top.length * rh + 26)}`);
+  const g = el("g", { class: "grid" }, svg); [0, 2, 4, 6, 8, 10].forEach(v => { el("line", { x1: x(v), x2: x(v), y1: T, y2: T + top.length * rh }, g); el("text", { x: x(v), y: T + top.length * rh + 16, "text-anchor": "middle" }, svg).textContent = v; });
+  if (!top.length) el("text", { x: W / 2, y: 40, "text-anchor": "middle" }, svg).textContent = "No approaches match these filters.";
+  top.forEach((r, i) => { const yy = T + i * rh;
+    el("text", { x: L - 8, y: yy + rh / 2 + 4, "text-anchor": "end", style: "fill:" + css("--ink") }, svg).textContent = `${nice(r.sat)} ↔ ${nice(r.obj)}`.slice(0, 40);
+    const b = el("rect", { x: L, y: yy + 5, width: Math.max(2, x(r.km) - L), height: rh - 10, rx: 3, fill: r.type === "debris" ? css("--base") : css("--aqua") }, svg);
+    el("text", { x: x(r.km) + 6, y: yy + rh / 2 + 4, class: "lbl" }, svg).textContent = r.km.toFixed(1) + " km · " + r.t.slice(5, 10);
+    b.addEventListener("mousemove", e => tipAt($("#dbtip"), $("#dbcw"), e, `<b>${nice(r.sat)}</b> ↔ ${nice(r.obj)}<br>${r.km.toFixed(2)} km at ${r.v.toFixed(1)} km/s<br>${r.t} UTC · ${r.type}`)); b.addEventListener("mouseleave", () => $("#dbtip").hidden = true); });
+  // table
+  const [k, dir] = dbSort; const t = [...rows].sort((a, b) => (a[k] > b[k] ? 1 : a[k] < b[k] ? -1 : 0) * dir);
+  $("#dbt tbody").innerHTML = t.map(r => `<tr class="${c1 && r === c1 ? "hl" : ""}"><td>${nice(r.sat)}</td><td>${nice(r.obj)}</td><td>${r.type}</td><td class="num">${r.km.toFixed(2)}</td><td class="num">${r.v.toFixed(1)}</td><td class="mono">${r.t.slice(0, 16)}</td></tr>`).join("") || `<tr><td colspan="6" class="muted">No approaches match these filters.</td></tr>`;
+}
+$$("#dbt th").forEach(th => th.addEventListener("click", () => { const k = th.dataset.k; dbSort = [k, dbSort[0] === k ? -dbSort[1] : 1];
+  $$("#dbt th").forEach(h => h.setAttribute("aria-sort", h === th ? (dbSort[1] > 0 ? "ascending" : "descending") : "none")); drawDebris(); }));
+
+/* ---------------- INIT ---------------- */
+async function init() {
+  try { D = await (await fetch("data.json")).json(); } catch (e) { document.querySelector("main").insertAdjacentHTML("afterbegin", '<p class="card">The data file could not be loaded. Reload the page to try again.</p>'); return; }
+  const F = D.flood, S = F.stats; EV = D.collision.events;
+  // overview
+  const acc = (g, m) => F.accuracy.find(a => a.evaluated_on === g && a.method === m)?.IoU_water || 0;
+  const gain = (acc("Test floods", "AI (Gradient Boosting)") / acc("Test floods", "Otsu threshold") - 1) * 100;
+  $("#k-water").textContent = fmt(S.baseline.flooded_km2) + " km²"; $("#k-ai").textContent = "+" + gain.toFixed(0) + "%"; $("#ai-gain").textContent = "+" + gain.toFixed(0) + "%";
+  const cut = D.collision.cutoff; const cmA = confusion(e => e.ai >= cut), cmB = confusion(e => e.r2 >= HI);
+  $("#k-caught").textContent = `${cmA.tp} of ${cmA.tp + cmA.fn}`; $("#k-caught-b").textContent = `${cmB.tp} of ${cmB.tp + cmB.fn}`;
+  const s1 = D.debris.rows.filter(r => r.sat.includes("SENTINEL")).sort((a, b) => a.km - b.km)[0];
+  if (s1) { $("#k-closest").textContent = s1.km.toFixed(1) + " km"; $("#k-closest-l").textContent = `${nice(s1.sat)} vs ${nice(s1.obj)}, ${s1.t.slice(5, 10)} (72-hour screen)`; }
+  // flood
+  $("#f-bw").textContent = fmt(S.baseline.flooded_km2) + " km²"; $("#f-aw").textContent = fmt(S.ai.flooded_km2) + " km²";
+  $("#f-bc").textContent = fmt(S.baseline.cropland_km2) + " km²"; $("#f-ac").textContent = fmt(S.ai.cropland_km2) + " km²";
+  $("#f-box").textContent = `${fmt(S.baseline.alappuzha_kottayam_km2)} km² (change detection) / ${fmt(S.ai.alappuzha_kottayam_km2)} km² (AI)`;
+  const cv = $("#map"); cv.width = F.img_w; cv.height = F.img_h;
+  await Promise.all([loadImg("before", "radar_before.png"), loadImg("after", "radar_after.png"), loadImg("base", "flood_base.png"), loadImg("ai", "flood_ai.png")]);
+  seg("#b-before, #b-after", b => { showAfter = b.id === "b-after"; drawMap(); });
+  seg("#m-base, #m-ai, #m-dis", b => { method = b.id.slice(2); drawMap(); });
+  ["#c-base", "#c-ai", "#c-cells"].forEach(s => $(s).addEventListener("change", drawMap));
+  $("#s-trig").addEventListener("input", e => { $("#o-trig").textContent = e.target.value + "%"; drawMap(); });
+  $("#s-min").addEventListener("input", e => { $("#o-min").textContent = e.target.value + "%"; drawMap(); });
+  $("#i-si").addEventListener("input", drawMap);
+  cv.addEventListener("mousemove", mapHover); cv.addEventListener("mouseleave", () => $("#maptip").hidden = true);
+  // collision
+  $("#n-danger").textContent = EV.filter(e => e.y).length; $("#s-cut").value = cut; $("#o-def").textContent = cut.toFixed(2);
+  seg("[data-filt]", b => { filt = b.dataset.filt; listEvents(); drawTimeline(); });
+  $("#ev-sel").addEventListener("change", e => { sel = EV.find(x => x.id === +e.target.value); drawTimeline(); });
+  ["#s-cut", "#s-bthr"].forEach(s => $(s).addEventListener("input", () => { updateAccuracy(); drawScatter(); drawTimeline(); if (filt === "ai" || filt === "missed") listEvents(); }));
+  listEvents(); updateAccuracy();
+  // debris
+  $("#db-lead").textContent = `${D.debris.n_targets} satellites (Sentinel-1A, 1C, 1D and 8 ISRO Cartosats) screened against ${fmt(D.debris.n_objects)} objects for ${D.debris.hours} hours from ${D.debris.start_utc} UTC, using public orbits and the SGP4 model. Every close pass is rechecked second by second.`;
+  seg("[data-sat]", b => { dbSat = b.dataset.sat; drawDebris(); }); seg("[data-ot]", b => { dbOt = b.dataset.ot; drawDebris(); });
+  $("#s-km").addEventListener("input", drawDebris);
+  route();
+  if (window.matchMedia) matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", route);
+}
+route(); init();
+})();
+</script>

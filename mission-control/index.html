@@ -1,0 +1,416 @@
+<meta charset="utf-8">
+<title>OrbitWise Mission Control</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/satellite.js@5.0.0/dist/satellite.min.js"></script>
+<style>
+/* Layout: one dark mission-control screen. Globe fills the left; a countdown rail on the right; time controls float over the globe. Deliberately single-theme (night operations look). */
+:root {
+  color-scheme: dark;
+  --bg: #050a14; --panel: #0b1424; --panel-2: #111e33; --line: #1f3150;
+  --ink: #e8eef8; --muted: #8fa3bf; --faint: #5a6d88;
+  --s1: #5ec8ff; --carto: #f59e5b; --debris: #ff5d5d; --active: #c9d4e6; --kerala: #f5d547; --ok: #4ade80;
+  --f-display: "Space Grotesk", "Segoe UI", Arial, sans-serif;
+  --f-body: "Inter", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); overflow: hidden; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 390px; height: 100%; }
+.stage { position: relative; min-width: 0; overflow: hidden; }
+#gl { display: block; width: 100%; height: 100%; }
+.rail { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding-block: 18px 24px; padding-left: 18px; padding-right: max(18px, env(safe-area-inset-right, 0px)); display: grid; gap: 14px; align-content: start; }
+@media (max-width: 860px) { body { overflow: auto; } .app { grid-template-columns: 1fr; height: auto; } .stage { height: 62vh; } .rail { border-left: 0; border-top: 1px solid var(--line); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); } }
+h1 { font: 700 1.15rem var(--f-display); margin: 0; letter-spacing: -0.01em; }
+.eyebrow { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.box { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 6px; min-width: 0; }
+.clock { font: 700 1.9rem var(--f-mono); letter-spacing: 0.02em; }
+.cd { font: 700 2.15rem var(--f-mono); letter-spacing: 0.01em; line-height: 1.05; }
+.cd small { font-size: 0.9rem; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); font-size: 0.86rem; }
+.badge { display: inline-flex; align-items: center; gap: 6px; font: 600 0.72rem var(--f-mono); padding: 3px 8px; border-radius: 99px; background: #13233c; color: var(--muted); }
+.badge.live { color: var(--ok); } .badge.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: blink 1.4s infinite; }
+.badge.sim { color: var(--kerala); }
+@keyframes blink { 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .badge.live::before { animation: none; } }
+button { font: 600 0.82rem var(--f-body); color: var(--ink); background: #15253f; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+button:hover { border-color: var(--s1); }
+button[aria-pressed="true"] { background: var(--s1); color: #04121f; border-color: var(--s1); }
+button:focus-visible { outline: 2px solid var(--kerala); outline-offset: 2px; }
+button.primary { background: var(--debris); border-color: var(--debris); color: #1a0505; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.list { display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border-radius: 9px; background: #0d192c; border: 1px solid transparent; }
+.item:hover { border-color: var(--line); }
+.item .t { font-family: var(--f-mono); font-weight: 600; text-align: right; }
+.item .n { font-weight: 600; font-size: 0.86rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item .d { color: var(--muted); font-size: 0.78rem; grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.item button { padding: 3px 8px; font-size: 0.74rem; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+a { color: var(--s1); }
+
+/* overlays on the globe */
+.hud { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); top: 14px; display: grid; gap: 8px; max-width: min(460px, calc(100% - 28px)); pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.glass { background: rgba(8, 16, 30, 0.78); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; backdrop-filter: blur(6px); }
+.controls { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); bottom: 14px; display: grid; gap: 8px; max-width: calc(100% - 28px); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.78rem; color: var(--muted); }
+.replay { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); text-align: center; min-width: min(420px, calc(100% - 28px)); }
+.replay .dist { font: 700 2.4rem var(--f-mono); }
+.flood { position: absolute; right: 14px; bottom: 14px; width: 210px; display: grid; gap: 6px; }
+.flood img { width: 100%; border-radius: 8px; display: block; }
+.label { position: absolute; transform: translate(10px, -50%); font: 600 11px var(--f-mono); color: var(--ink); text-shadow: 0 0 4px #000, 0 0 2px #000; pointer-events: none; white-space: nowrap; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 5; font: 600 1rem var(--f-mono); color: var(--muted); text-align: center; padding: 20px; }
+input[type=checkbox] { accent-color: var(--s1); }
+.toggles { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.82rem; }
+.toggles label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <canvas id="gl" aria-label="3D globe with Sentinel-1, Cartosat and debris in their real orbits"></canvas>
+    <div id="labels"></div>
+    <div class="loading" id="loading">Loading orbits…</div>
+
+    <div class="hud">
+      <div class="glass">
+        <p class="eyebrow">OrbitWise · Track A + Track B</p>
+        <h1>The satellites that see the flood, and what is flying past them</h1>
+        <div class="legend" style="margin-top:6px">
+          <span><span class="dot" style="background:var(--s1)"></span>Sentinel-1 (flood radar)</span>
+          <span><span class="dot" style="background:var(--carto)"></span>ISRO Cartosat</span>
+          <span><span class="dot" style="background:var(--debris)"></span>debris</span>
+          <span><span class="dot" style="background:var(--kerala)"></span>Kerala</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="replay glass" id="replay" hidden>
+      <p class="eyebrow" id="rp-title">Close-call replay</p>
+      <div class="dist" id="rp-dist">–</div>
+      <div class="sub" id="rp-sub"></div>
+      <div class="row" style="justify-content:center; margin-top:6px"><button id="rp-again">Replay again</button><button id="rp-exit">Back to live</button></div>
+    </div>
+
+    <div class="flood glass" id="flood" hidden>
+      <p class="eyebrow" id="fl-title">Sentinel-1 over Kerala</p>
+      <img src="kerala_thumb.png" alt="Sentinel-1 radar of central Kerala on 21 Aug 2018 with new flood water in blue">
+      <p class="sub" style="font-size:0.75rem">What Sentinel-1 saw on 21 Aug 2018: new flood water in blue (real data).</p>
+    </div>
+
+    <div class="controls glass">
+      <div class="row" role="group" aria-label="Time">
+        <button id="t-live" aria-pressed="true">● Live</button>
+        <button data-speed="60" aria-pressed="false">×60</button>
+        <button data-speed="600" aria-pressed="false">×600</button>
+        <button data-speed="3600" aria-pressed="false">×3600</button>
+        <button id="t-pause" aria-pressed="false">Pause</button>
+      </div>
+      <div class="row" role="group" aria-label="Camera">
+        <button data-focus="earth">Earth</button>
+        <button data-focus="kerala">Kerala</button>
+        <button data-focus="SENTINEL-1A">S-1A</button>
+        <button data-focus="SENTINEL-1C">S-1C</button>
+        <button data-focus="SENTINEL-1D">S-1D</button>
+      </div>
+      <div class="toggles">
+        <label><input type="checkbox" id="g-debris" checked> Debris (2,685)</label>
+        <label><input type="checkbox" id="g-carto" checked> Cartosat</label>
+        <label><input type="checkbox" id="g-orbits" checked> Orbits</label>
+        <label><input type="checkbox" id="g-active"> All active satellites</label>
+      </div>
+    </div>
+  </div>
+
+  <aside class="rail" aria-label="Live countdowns">
+    <div class="box">
+      <div class="row" style="justify-content:space-between"><p class="eyebrow">Mission clock (UTC)</p><span class="badge live" id="mode">LIVE</span></div>
+      <div class="clock" id="clock">--:--:--</div>
+      <div class="sub mono" id="date">----</div>
+    </div>
+
+    <div class="box">
+      <p class="eyebrow">Next Sentinel-1 pass in range of Kerala</p>
+      <div class="cd" id="cd-pass">--:--:--</div>
+      <div class="sub" id="cd-pass-sub">computing passes…</div>
+    </div>
+
+    <div class="box">
+      <p class="eyebrow">Next close approach under 10 km</p>
+      <div class="cd" id="cd-ca">--:--:--</div>
+      <div class="sub" id="cd-ca-sub"></div>
+      <div class="row" style="margin-top:4px"><button class="primary" id="ca-replay">Replay this close call</button><button id="best-replay">Closest: Sentinel-1C</button></div>
+    </div>
+
+    <div class="box">
+      <div class="row" style="justify-content:space-between">
+        <p class="eyebrow">Upcoming approaches</p>
+        <div class="row" role="group" aria-label="Filter"><button data-flt="s1" aria-pressed="true">Sentinel-1</button><button data-flt="all" aria-pressed="false">All</button></div>
+      </div>
+      <div class="list" id="upcoming"></div>
+    </div>
+
+    <div class="box" id="track-box">
+      <p class="eyebrow" id="trk-title">Tracking</p>
+      <div class="sub mono" id="trk"></div>
+    </div>
+
+    <div class="box">
+      <p class="eyebrow">About this screen</p>
+      <p class="sub">Positions are computed live in your browser with SGP4 from public orbit data (CelesTrak, epoch <span id="epoch" class="mono"></span>). Accurate to about a kilometre, so close approaches are screening flags for operators, not collision predictions. “In range” means Sentinel-1 is within 600 km of Kerala, close enough for its side-looking radar; actual acquisitions follow ESA’s plan.</p>
+      <p class="sub"><a href="../demo/" target="_blank" rel="noopener">Open the full OrbitWise demo →</a></p>
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const R = 6371, KERALA = { lat: 9.6, lon: 76.4 }, RANGE_KM = 600;
+if (!window.THREE || !window.satellite) { $("#loading").textContent = "The 3D libraries could not load. Check the connection and reload."; return; }
+const sat = window.satellite;
+
+/* ---------- helpers ---------- */
+function parseTLE(text) { const L = text.split(/\r?\n/).map(s => s.trimEnd()).filter(Boolean), out = [];
+  for (let i = 0; i < L.length - 2; i++) if (L[i + 1].startsWith("1 ") && L[i + 2].startsWith("2 ")) {
+    try { const rec = sat.twoline2satrec(L[i + 1], L[i + 2]); out.push({ name: L[i].trim(), rec, num: rec.satnum }); } catch (e) {} i += 2; }
+  return out; }
+function eci(rec, d) { const pv = sat.propagate(rec, d); return pv && pv.position && !isNaN(pv.position.x) ? pv : null; }
+const toV = (p, v) => (v || new THREE.Vector3()).set(p.x / R, p.z / R, -p.y / R);
+function llToV(lat, lon, r = 1) { const a = lat * Math.PI / 180, b = lon * Math.PI / 180; return new THREE.Vector3(r * Math.cos(a) * Math.cos(b), r * Math.sin(a), -r * Math.cos(a) * Math.sin(b)); }
+function hav(lat1, lon1, lat2, lon2) { const r = Math.PI / 180, dl = (lat2 - lat1) * r, dn = (lon2 - lon1) * r;
+  const a = Math.sin(dl / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dn / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(a)); }
+const pad = n => String(n).padStart(2, "0");
+function hms(ms) { if (ms < 0) ms = 0; const s = Math.floor(ms / 1000), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60;
+  return (d ? `${d}<small>d</small> ` : "") + `${pad(h)}:${pad(m)}:${pad(ss)}`; }
+const nice = s => s.replace(" DEB", " debris").replace("IRS-P5 (CARTOSAT-1)", "Cartosat-1").toLowerCase().replace(/(^|[\s(-])([a-z])/g, (m, a, b) => a + b.toUpperCase()).replace(/(\d)([a-z])\b/g, (m, a, b) => a + b.toUpperCase());
+const utc = s => new Date(s.replace(" ", "T") + "Z");
+
+/* ---------- three.js scene ---------- */
+const canvas = $("#gl"), stage = $("#stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, logarithmicDepthBuffer: true });
+renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+const scene = new THREE.Scene(); scene.background = new THREE.Color("#050a14");
+const camera = new THREE.PerspectiveCamera(45, 1, 1e-6, 200);
+camera.position.set(1.6, 1.4, 3.2);
+const controls = new THREE.OrbitControls(camera, canvas); controls.enableDamping = true; controls.minDistance = 0.004; controls.maxDistance = 20;
+scene.add(new THREE.AmbientLight(0x5a6d88, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0); scene.add(sun);
+
+// stars
+{ const n = 1500, g = new THREE.BufferGeometry(), a = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const v = new THREE.Vector3().randomDirection ? new THREE.Vector3().randomDirection() : new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize(); v.multiplyScalar(60 + Math.random() * 40); a.set([v.x, v.y, v.z], i * 3); }
+  g.setAttribute("position", new THREE.BufferAttribute(a, 3)); scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8fa3bf, size: 1.2, sizeAttenuation: false }))); }
+
+const earth = new THREE.Group(); scene.add(earth);
+earth.add(new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhongMaterial({ color: 0x0d2a4a, emissive: 0x020a16, shininess: 12 })));
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.025, 64, 48), new THREE.MeshBasicMaterial({ color: 0x3a8dde, transparent: true, opacity: 0.08, side: THREE.BackSide })));
+// graticule
+{ const pts = []; for (let lat = -60; lat <= 60; lat += 30) for (let lon = -180; lon < 180; lon += 3) pts.push(llToV(lat, lon, 1.0015), llToV(lat, lon + 3, 1.0015));
+  for (let lon = -180; lon < 180; lon += 30) for (let lat = -87; lat < 87; lat += 3) pts.push(llToV(lat, lon, 1.0015), llToV(lat + 3, lon, 1.0015));
+  earth.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x1f3a60, transparent: true, opacity: 0.55 }))); }
+// Kerala marker
+const kPos = llToV(KERALA.lat, KERALA.lon, 1.003);
+const kMark = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf5d547 })); kMark.position.copy(kPos); earth.add(kMark);
+const kRing = new THREE.Mesh(new THREE.RingGeometry(0.02, 0.026, 48), new THREE.MeshBasicMaterial({ color: 0xf5d547, transparent: true, opacity: 0.7, side: THREE.DoubleSide }));
+kRing.position.copy(kPos); kRing.lookAt(kPos.clone().multiplyScalar(2)); earth.add(kRing);
+
+/* ---------- objects ---------- */
+let targets = [], s1 = [], carto = [], debris = [], active = [], approaches = [], epochStr = "";
+const S1_COLOR = 0x5ec8ff, CARTO = 0xf59e5b, DEB = 0xff5d5d;
+function pointsLayer(n, color, size, opacity = 1) { const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color, size, sizeAttenuation: false, transparent: opacity < 1, opacity, depthWrite: opacity === 1 })); p.frustumCulled = false; scene.add(p); return p; }
+let s1Pts, cartoPts, debPts, actPts, orbitLines = [], footLine, caLine, caPts;
+const labelEls = {};
+function label(key, text, color) { const e = document.createElement("div"); e.className = "label"; e.textContent = text; e.style.color = color; $("#labels").appendChild(e); labelEls[key] = e; return e; }
+
+/* ---------- time ---------- */
+let live = true, paused = false, speed = 1, simMs = Date.now(), lastFrame = performance.now();
+function setSpeed(s) { live = false; paused = false; speed = s; syncTimeButtons(); }
+function syncTimeButtons() {
+  $("#t-live").setAttribute("aria-pressed", live ? "true" : "false");
+  $$("[data-speed]").forEach(b => b.setAttribute("aria-pressed", !live && !paused && +b.dataset.speed === speed ? "true" : "false"));
+  $("#t-pause").setAttribute("aria-pressed", paused ? "true" : "false");
+  const m = $("#mode"); m.className = "badge " + (live ? "live" : "sim"); m.textContent = live ? "LIVE" : paused ? "PAUSED" : (replay ? "REPLAY ×" + speed : "SIM ×" + speed);
+}
+
+/* ---------- passes over Kerala ---------- */
+let passes = [], passFrom = 0, passTo = 0;
+function computePasses(fromMs) {
+  passes = []; passFrom = fromMs; passTo = fromMs + 7 * 86400e3; const step = 30e3;
+  for (const o of s1) { let inside = false, cur = null;
+    for (let t = fromMs - 3600e3; t <= passTo; t += step) { const d = new Date(t), pv = eci(o.rec, d); if (!pv) continue;
+      const g = sat.eciToGeodetic(pv.position, sat.gstime(d)), km = hav(KERALA.lat, KERALA.lon, g.latitude * 180 / Math.PI, g.longitude * 180 / Math.PI);
+      if (km < RANGE_KM) { if (!inside) { cur = { sat: o.name, start: t, end: t, min: km, tmin: t }; inside = true; } cur.end = t; if (km < cur.min) { cur.min = km; cur.tmin = t; } }
+      else if (inside) { passes.push(cur); inside = false; } }
+    if (inside) passes.push(cur); }
+  passes.sort((a, b) => a.start - b.start);
+}
+
+/* ---------- close-call replay ---------- */
+let replay = null;
+function startReplay(row) {
+  const tgt = targets.find(t => t.name.trim() === row.sat); if (!tgt) return;
+  const tca = utc(row.t).getTime(); let best = null, bd = 1e9;
+  for (const o of [...debris, ...active]) { if (o.name.trim() !== row.obj) continue; const a = eci(tgt.rec, new Date(tca)), b = eci(o.rec, new Date(tca)); if (!a || !b) continue;
+    const d = Math.hypot(a.position.x - b.position.x, a.position.y - b.position.y, a.position.z - b.position.z); if (d < bd) { bd = d; best = o; } }
+  if (!best) { $("#rp-sub").textContent = "Turn on “All active satellites” to replay approaches with active satellites."; $("#replay").hidden = false; return; }
+  replay = { row, tgt, obj: best, tca, minSeen: 1e9 };
+  live = false; paused = false; speed = 1; simMs = tca - 45e3; focus = tgt.name; zoomTo = 0.012; syncTimeButtons();
+  $("#replay").hidden = false; $(".hud").hidden = true; $("#rp-title").textContent = `Close-call replay · ${nice(row.sat)} vs ${nice(row.obj)}`;
+}
+function exitReplay() { replay = null; $("#replay").hidden = true; $(".hud").hidden = false; caLine.visible = false; caPts.visible = false; live = true; paused = false; speed = 1; focus = "earth"; zoomTo = 3.6; syncTimeButtons(); }
+
+/* ---------- camera focus ---------- */
+let focus = "earth", zoomTo = null; const tmpV = new THREE.Vector3();
+function focusPos() { if (focus === "earth") return new THREE.Vector3(0, 0, 0); if (focus === "kerala") return kPos.clone().applyMatrix4(earth.matrixWorld);
+  const t = targets.find(x => x.name.trim() === focus); return t && t.v ? t.v.clone() : new THREE.Vector3(); }
+$$("[data-focus]").forEach(b => b.addEventListener("click", () => { focus = b.dataset.focus; zoomTo = focus === "earth" ? 3.6 : focus === "kerala" ? 1.1 : 0.35; if (replay) exitReplay(); focus = b.dataset.focus; }));
+
+/* ---------- UI wiring ---------- */
+$("#t-live").addEventListener("click", () => { live = true; paused = false; speed = 1; if (replay) exitReplay(); syncTimeButtons(); });
+$$("[data-speed]").forEach(b => b.addEventListener("click", () => setSpeed(+b.dataset.speed)));
+$("#t-pause").addEventListener("click", () => { if (live) { live = false; } paused = !paused; syncTimeButtons(); });
+$("#rp-exit").addEventListener("click", exitReplay);
+$("#rp-again").addEventListener("click", () => replay && startReplay(replay.row));
+let flt = "s1"; $$("[data-flt]").forEach(b => b.addEventListener("click", () => { flt = b.dataset.flt; $$("[data-flt]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false")); renderUpcoming(true); }));
+$("#g-active").addEventListener("change", async e => { if (e.target.checked && !active.length) await loadActive(); if (actPts) actPts.visible = e.target.checked; });
+["#g-debris", "#g-carto", "#g-orbits"].forEach(id => $(id).addEventListener("change", applyToggles));
+function applyToggles() { debPts.visible = $("#g-debris").checked; cartoPts.visible = $("#g-carto").checked; orbitLines.forEach(l => l.visible = $("#g-orbits").checked);
+  carto.forEach(c => labelEls[c.name] && (labelEls[c.name].hidden = !$("#g-carto").checked)); }
+
+/* ---------- loading ---------- */
+async function txt(u) { const r = await fetch(u); if (!r.ok) throw new Error(u); return r.text(); }
+async function loadActive() {
+  $("#g-active").disabled = true; const lbl = $("#g-active").parentElement; const old = lbl.lastChild.textContent; lbl.lastChild.textContent = " Loading 15,829…";
+  const all = parseTLE(await txt("tle_active.txt")), have = new Set([...targets, ...debris].map(o => o.num));
+  active = all.filter(o => !have.has(o.num)); actPts = pointsLayer(active.length, 0xc9d4e6, 1.6, 0.55); actIdx = 0;
+  lbl.lastChild.textContent = ` All active satellites (${active.length.toLocaleString()})`; $("#g-active").disabled = false;
+}
+let debIdx = 0, actIdx = 0;
+async function init() {
+  try {
+    const [s1t, ct, ap, ...debTexts] = await Promise.all([txt("tle_sentinel1.txt"), txt("tle_cartosat.txt"), fetch("approaches.json").then(r => r.json()),
+      txt("tle_fengyun-1c-debris.txt"), txt("tle_cosmos-2251-debris.txt"), txt("tle_iridium-33-debris.txt"), txt("tle_cosmos-1408-debris.txt")]);
+    const sAll = parseTLE(s1t); s1 = sAll.filter(o => o.name.trim() !== "SENTINEL-1B"); carto = parseTLE(ct);
+    debris = [...sAll.filter(o => o.name.trim() === "SENTINEL-1B"), ...debTexts.flatMap(parseTLE)];
+    targets = [...s1, ...carto]; approaches = ap.rows.map(r => ({ ...r, ms: utc(r.t).getTime() })).sort((a, b) => a.ms - b.ms);
+    const ep = s1[0].rec; const epd = new Date(Date.UTC(2000 + (ep.epochyr % 100), 0, 1) + (ep.epochdays - 1) * 86400e3); epochStr = epd.toISOString().slice(0, 16).replace("T", " ") + " UTC"; $("#epoch").textContent = epochStr;
+  } catch (e) { $("#loading").textContent = "Orbit files could not be loaded. Reload to try again."; return; }
+  s1Pts = pointsLayer(s1.length, S1_COLOR, 9); cartoPts = pointsLayer(carto.length, CARTO, 6); debPts = pointsLayer(debris.length, DEB, 2.2, 0.85);
+  s1.forEach(o => label(o.name, nice(o.name), "#5ec8ff")); carto.forEach(o => label(o.name, nice(o.name), "#f59e5b")); label("kerala", "Kerala", "#f5d547");
+  for (const o of s1) { const l = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: S1_COLOR, transparent: true, opacity: 0.45 })); l.userData.sat = o; l.frustumCulled = false; scene.add(l); orbitLines.push(l); }
+  footLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xf5d547 })); footLine.visible = false; footLine.frustumCulled = false; scene.add(footLine);
+  caLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]), new THREE.LineBasicMaterial({ color: 0xff5d5d })); caLine.visible = false; caLine.frustumCulled = false; scene.add(caLine);
+  caPts = pointsLayer(1, 0xff5d5d, 10); caPts.visible = false;
+  // coastlines (Natural Earth 1:110m via world-atlas)
+  try { const arcs = await fetch("coast.json").then(r => r.json()), pts = [];
+    for (const arc of arcs) for (let k = 1; k < arc.length; k++) pts.push(llToV(arc[k - 1][1], arc[k - 1][0], 1.002), llToV(arc[k][1], arc[k][0], 1.002));
+    earth.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x6fa8dc, transparent: true, opacity: 0.85 })));
+  } catch (e) {}
+  // full debris positions once so the cloud appears immediately
+  updateChunk(debris, debPts, 0, debris.length, new Date(simMs));
+  computePasses(Date.now()); updateOrbits(new Date(simMs));
+  const best = approaches.filter(a => a.sat.includes("SENTINEL")).sort((a, b) => a.km - b.km)[0];
+  if (best) { $("#best-replay").textContent = `Closest: ${nice(best.sat)} · ${best.km.toFixed(1)} km`; $("#best-replay").onclick = () => startReplay(best); }
+  $("#loading").hidden = true; renderUpcoming(true); requestAnimationFrame(frame);
+}
+
+/* ---------- per-frame updates ---------- */
+function updateChunk(list, layer, from, n, d) { const a = layer.geometry.attributes.position.array, v = new THREE.Vector3();
+  for (let k = 0; k < n; k++) { const i = (from + k) % list.length, pv = eci(list[i].rec, d);
+    if (pv) { toV(pv.position, v); a[i * 3] = v.x; a[i * 3 + 1] = v.y; a[i * 3 + 2] = v.z; } else { a[i * 3] = a[i * 3 + 1] = a[i * 3 + 2] = 0; } }
+  layer.geometry.attributes.position.needsUpdate = true; return (from + n) % list.length; }
+let lastOrbit = 0;
+function updateOrbits(d) { const t0 = d.getTime(); for (const l of orbitLines) { const o = l.userData.sat, per = 2 * Math.PI / o.rec.no * 60e3, pts = [];
+  for (let k = 0; k <= 120; k++) { const pv = eci(o.rec, new Date(t0 + per * k / 120)); if (pv) pts.push(toV(pv.position)); } l.geometry.setFromPoints(pts); } lastOrbit = t0; }
+function sunDir(d) { const n = (d.getTime() / 86400e3) - 10957.5, L = (280.46 + 0.9856474 * n) * Math.PI / 180, g = (357.528 + 0.9856003 * n) * Math.PI / 180;
+  const lam = L + (1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) * Math.PI / 180, eps = 23.439 * Math.PI / 180;
+  return toV({ x: Math.cos(lam), y: Math.cos(eps) * Math.sin(lam), z: Math.sin(eps) * Math.sin(lam) }).multiplyScalar(R).normalize(); }
+
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+window.addEventListener("resize", resize); resize();
+
+let lastUi = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
+  if (live) simMs = Date.now(); else if (!paused) {
+    let sp = speed;
+    if (replay) { const dtc = Math.abs(simMs - replay.tca); sp = dtc < 8e3 ? 0.2 : dtc < 25e3 ? 0.5 : 1; speed = sp; }
+    simMs += dt * 1000 * sp; }
+  const d = new Date(simMs), gm = sat.gstime(d);
+  earth.rotation.y = gm; earth.updateMatrixWorld();
+  sun.position.copy(sunDir(d)).multiplyScalar(10);
+  // targets
+  const sa = s1Pts.geometry.attributes.position.array, ca = cartoPts.geometry.attributes.position.array;
+  targets.forEach((o, i) => { const pv = eci(o.rec, d); if (!pv) return; o.pv = pv; o.v = toV(pv.position, o.v || new THREE.Vector3());
+    const arr = i < s1.length ? sa : ca, j = i < s1.length ? i : i - s1.length; arr[j * 3] = o.v.x; arr[j * 3 + 1] = o.v.y; arr[j * 3 + 2] = o.v.z; });
+  s1Pts.geometry.attributes.position.needsUpdate = true; cartoPts.geometry.attributes.position.needsUpdate = true;
+  const fast = !live && speed >= 600;
+  if (debPts.visible) debIdx = updateChunk(debris, debPts, debIdx, fast ? debris.length : 450, d);
+  if (actPts && actPts.visible) actIdx = updateChunk(active, actPts, actIdx, fast ? 2500 : 900, d);
+  if (simMs - lastOrbit > 120e3 || simMs < lastOrbit) updateOrbits(d);
+  // Kerala range
+  let inRange = null;
+  for (const o of s1) { if (!o.pv) continue; const g = sat.eciToGeodetic(o.pv.position, gm), km = hav(KERALA.lat, KERALA.lon, g.latitude * 180 / Math.PI, g.longitude * 180 / Math.PI); o.geo = g; o.kmK = km; if (km < RANGE_KM && (!inRange || km < inRange.kmK)) inRange = o; }
+  if (inRange) { const kw = kPos.clone().applyMatrix4(earth.matrixWorld); footLine.geometry.setFromPoints([inRange.v, kw]); footLine.visible = true; $("#flood").hidden = false; $("#fl-title").textContent = `${nice(inRange.name)} in range of Kerala · ${Math.round(inRange.kmK)} km`; }
+  else { footLine.visible = false; $("#flood").hidden = true; }
+  // replay
+  if (replay) { const pv = eci(replay.obj.rec, d); if (pv) { const ov = toV(pv.position), tv = replay.tgt.v;
+      caLine.geometry.setFromPoints([tv, ov]); caLine.visible = true; const a = caPts.geometry.attributes.position.array; a[0] = ov.x; a[1] = ov.y; a[2] = ov.z; caPts.geometry.attributes.position.needsUpdate = true; caPts.visible = true;
+      const km = Math.hypot(pv.position.x - replay.tgt.pv.position.x, pv.position.y - replay.tgt.pv.position.y, pv.position.z - replay.tgt.pv.position.z);
+      replay.minSeen = Math.min(replay.minSeen, km);
+      $("#rp-dist").textContent = km < 100 ? km.toFixed(2) + " km" : Math.round(km).toLocaleString() + " km";
+      $("#rp-dist").style.color = km < 10 ? "#ff5d5d" : "#e8eef8";
+      const tt = (simMs - replay.tca) / 1000; $("#rp-sub").textContent = `${tt < 0 ? "T−" : "T+"}${Math.abs(tt).toFixed(1)} s · relative speed ${replay.row.v.toFixed(1)} km/s · closest seen ${replay.minSeen.toFixed(2)} km · slow motion near closest approach`; } }
+  // camera follow
+  const fp = focusPos(); const delta = fp.clone().sub(controls.target); camera.position.add(delta); controls.target.copy(fp);
+  if (zoomTo != null) { const dir = camera.position.clone().sub(fp); const cur = dir.length(); const nl = cur + (zoomTo - cur) * 0.08; dir.setLength(nl); camera.position.copy(fp).add(dir); if (Math.abs(nl - zoomTo) < zoomTo * 0.01) zoomTo = null; }
+  controls.update(); renderer.render(scene, camera);
+  // labels
+  const w = stage.clientWidth, h = stage.clientHeight, camDir = camera.position.clone().normalize();
+  const place = (key, v, hideBehind = true) => { const e = labelEls[key]; if (!e || !v) return; const p = v.clone().project(camera);
+    const behind = hideBehind && v.length() < 1.6 && v.clone().normalize().dot(camDir) < -0.15 && camera.position.length() > 1.3;
+    if (p.z > 1 || behind) { e.style.display = "none"; return; } e.style.display = ""; e.style.left = ((p.x + 1) / 2 * w) + "px"; e.style.top = ((1 - p.y) / 2 * h) + "px"; };
+  targets.forEach(o => place(o.name, o.v)); place("kerala", kPos.clone().applyMatrix4(earth.matrixWorld));
+  if (now - lastUi > 200) { lastUi = now; updateUi(); }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- countdown rail ---------- */
+function updateUi() {
+  const d = new Date(simMs); $("#clock").textContent = d.toISOString().slice(11, 19); $("#date").textContent = d.toISOString().slice(0, 10) + (live ? "" : " · simulated");
+  if (simMs > passTo - 86400e3 || simMs < passFrom - 3600e3) computePasses(simMs);
+  const cur = passes.find(p => p.start <= simMs && p.end >= simMs), nxt = passes.find(p => p.start > simMs);
+  if (cur) { $("#cd-pass").innerHTML = "IN RANGE"; $("#cd-pass").style.color = "#f5d547"; $("#cd-pass-sub").textContent = `${nice(cur.sat)} now · closest ${Math.round(cur.min)} km at ${new Date(cur.tmin).toISOString().slice(11, 19)} UTC`; }
+  else if (nxt) { $("#cd-pass").innerHTML = hms(nxt.start - simMs); $("#cd-pass").style.color = ""; $("#cd-pass-sub").textContent = `${nice(nxt.sat)} · ${new Date(nxt.start).toISOString().slice(5, 16).replace("T", " ")} UTC · closest ${Math.round(nxt.min)} km`; }
+  const pool = approaches.filter(a => flt === "all" || a.sat.includes("SENTINEL"));
+  const next = pool.find(a => a.ms > simMs);
+  if (next) { $("#cd-ca").innerHTML = hms(next.ms - simMs); $("#cd-ca-sub").textContent = `${nice(next.sat)} vs ${nice(next.obj)} · ${next.km.toFixed(2)} km at ${next.v.toFixed(1)} km/s · ${next.t.slice(5, 16)} UTC`; $("#ca-replay").disabled = false; $("#ca-replay").onclick = () => startReplay(next); }
+  else { $("#cd-ca").innerHTML = "—"; $("#cd-ca-sub").textContent = "All approaches in this 72-hour screen have passed. Refresh the orbit files and rerun stage 5 for a new window."; $("#ca-replay").disabled = true; }
+  renderUpcoming(false);
+  const t = targets.find(x => x.name.trim() === (replay ? replay.tgt.name.trim() : focus)) || s1.find(x => x.name.trim() === "SENTINEL-1C");
+  if (t && t.pv) { const g = t.geo || sat.eciToGeodetic(t.pv.position, sat.gstime(d)), v = t.pv.velocity, spd = Math.hypot(v.x, v.y, v.z);
+    $("#trk-title").textContent = "Tracking · " + nice(t.name);
+    $("#trk").innerHTML = `lat ${(g.latitude * 180 / Math.PI).toFixed(2)}° · lon ${(g.longitude * 180 / Math.PI).toFixed(2)}°<br>altitude ${g.height.toFixed(0)} km · speed ${spd.toFixed(2)} km/s` + (t.kmK != null ? `<br>distance to Kerala ${Math.round(t.kmK).toLocaleString()} km` : ""); }
+}
+let lastListKey = "";
+function renderUpcoming(force) {
+  const pool = approaches.filter(a => (flt === "all" || a.sat.includes("SENTINEL")) && a.ms > simMs).slice(0, 7);
+  const key = pool.map(a => a.ms).join(",") + flt;
+  if (force || key !== lastListKey) { lastListKey = key;
+    $("#upcoming").innerHTML = pool.length ? pool.map((a, i) => `<div class="item"><span class="n"><span class="dot" style="background:${a.type === "debris" ? "var(--debris)" : "var(--active)"}"></span>${nice(a.sat)} ↔ ${nice(a.obj)}</span><span class="t" data-cd="${a.ms}"></span>
+      <span class="d"><span class="mono">${a.km.toFixed(2)} km · ${a.v.toFixed(1)} km/s · ${a.t.slice(5, 16)}</span><button data-rp="${i}">Replay</button></span></div>`).join("") : `<p class="sub">No upcoming approaches in this screen.</p>`;
+    $$("[data-rp]").forEach(b => b.addEventListener("click", () => startReplay(pool[+b.dataset.rp]))); }
+  $$("[data-cd]").forEach(e => e.innerHTML = hms(+e.dataset.cd - simMs).replace(/<small>d<\/small>/, "d"));
+}
+
+init();
+})();
+</script>

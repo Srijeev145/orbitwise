@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OrbitWise</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=Inter:wght@400;500&display=swap">
+<style>
+  :root { color-scheme: dark; --bg: #050a14; --card: #0f1b30; --line: #1f3150; --ink: #e8eef8; --muted: #8fa3bf; --s1: #5ec8ff; --orange: #f59e5b; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink); font: 16px/1.5 "Inter", Arial, sans-serif;
+         display: grid; place-items: center; padding: 32px max(16px, env(safe-area-inset-left)) 32px max(16px, env(safe-area-inset-right)); }
+  main { max-width: 860px; width: 100%; display: grid; gap: 24px; }
+  h1 { font: 700 clamp(2rem, 5vw, 3rem) "Space Grotesk", Arial, sans-serif; margin: 0; }
+  p { margin: 0; color: var(--muted); }
+  .eyebrow { font-size: .75rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  a.card { display: grid; gap: 8px; padding: 22px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; color: var(--ink); text-decoration: none; }
+  a.card:hover, a.card:focus-visible { border-color: var(--s1); outline: none; }
+  a.card b { font: 700 1.3rem "Space Grotesk", Arial, sans-serif; }
+  .go { color: var(--s1); font-weight: 500; }
+  .foot { font-size: .85rem; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow">Boeing hackathon · Track A + Track B · RV College of Engineering</p>
+  <h1>OrbitWise</h1>
+  <p>Flood evidence from satellite radar, and protection for the satellites that make it possible. Built on real data: Sentinel-1 radar of the 2018 Kerala flood, expert-labelled flood imagery, ESA collision warnings and live public orbits.</p>
+  <div class="grid">
+    <a class="card" href="mission-control/"><span class="eyebrow" style="color:var(--orange)">Live</span><b>Mission Control</b><p>3D globe with Sentinel-1 and debris in their real orbits, live countdowns, and a replay of the 1.4 km close call.</p><span class="go">Open →</span></a>
+    <a class="card" href="demo/"><span class="eyebrow" style="color:var(--s1)">Explore</span><b>Interactive Demo</b><p>Kerala flood map with a live payout slider, flood-AI accuracy, 2-day-early collision risk and the debris screen.</p><span class="go">Open →</span></a>
+  </div>
+  <p class="foot">Data: ESA Copernicus Sentinel-1 &amp; WorldCover, Sen1Floods11, ESA Kelvins, CelesTrak.</p>
+</main>
+</body>
+</html>
